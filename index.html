@@ -13,34 +13,34 @@
     
     <!-- Top HUD Bar -->
     <header class="hud-bar">
-      <!-- Left section: Return Button, Settings Button & Player 1 Score -->
-      <div class="hud-left-section">
-        <button class="btn btnReturnHub" title="Menüye Dön">🏠 Menü</button>
-        <button class="btn btnSettingsToggle" title="Oyun Kontrolleri">⚙️ Ayarlar</button>
-
-        <!-- Player 1 Score & Ability Meter -->
-        <div class="player-score-card p1">
-          <div class="player-score-main">
-            <div class="player-avatar">P1</div>
-            <div class="player-info">
-              <span class="player-name">OYUNCU 1</span>
-            </div>
-            <span class="score-display" id="scoreP1">0</span>
+      <!-- Player 1 Score & Ability Meter (Far Left) -->
+      <div class="player-score-card p1">
+        <div class="player-score-main">
+          <div class="player-avatar">P1</div>
+          <div class="player-info">
+            <span class="player-name">OYUNCU 1</span>
           </div>
-          <!-- Strike Cooldown Bar P1 -->
-          <div class="energy-bar-container" title="P1 Vuruş">
-            <div class="energy-bar-fill" id="p1EnergyBar">⚡ VURUŞ HAZIR</div>
-          </div>
+          <span class="score-display" id="scoreP1">0</span>
+        </div>
+        <!-- Strike Cooldown Bar P1 -->
+        <div class="energy-bar-container" title="P1 Vuruş">
+          <div class="energy-bar-fill" id="p1EnergyBar">⚡ VURUŞ HAZIR</div>
         </div>
       </div>
 
-      <!-- Center Title & Speed Meter -->
-      <div class="game-center-info">
-        <h1 class="game-title">AVATAR HOKEY</h1>
-        <div class="hit-speed-meter" id="hitSpeedMeter">Vuruş Hızı: 0 km/h</div>
+      <!-- Center Group: Menü on Left | AVATAR HOKEY Title | Kontroller on Right -->
+      <div class="hud-center-group">
+        <button class="btn btnReturnHub" title="Menüye Dön">🏠 Menü</button>
+
+        <div class="game-center-info">
+          <h1 class="game-title">AVATAR HOKEY</h1>
+          <div class="hit-speed-meter" id="hitSpeedMeter">Vuruş Hızı: 0 km/h</div>
+        </div>
+
+        <button class="btn btnSettingsToggle" title="Oyun Kontrolleri">⚙️ Kontroller</button>
       </div>
 
-      <!-- Player 2 Score & Ability Meter -->
+      <!-- Player 2 Score & Ability Meter (Far Right) -->
       <div class="player-score-card p2">
         <div class="player-score-main">
           <div class="player-avatar">P2</div>
@@ -225,7 +225,7 @@
     <!-- Bottom Controls & Sound Toggle -->
     <footer class="bottom-controls">
       <div style="display: flex; gap: 10px;">
-        <button class="btn btnSettingsToggle" title="Oyun Kontrolleri">⚙️ Ayarlar</button>
+        <button class="btn btnSettingsToggle" title="Oyun Kontrolleri">⚙️ Kontroller</button>
         <button class="btn" id="btnSoundToggle">🔊 Ses: Açık</button>
       </div>
     </footer>
