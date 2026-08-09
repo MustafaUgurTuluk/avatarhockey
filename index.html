@@ -149,7 +149,72 @@
 
           <div class="control-btn-group">
             <button class="btn btn-primary" id="btnAvatarStart2P">🎮 2 Kişilik Oyna</button>
+            <button class="btn btn-online" id="btnAvatarStartOnline">🌐 Online Oyna</button>
             <button class="btn" id="btnAvatarStartAI">🤖 Bot'a Karşı Oyna</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- WebRTC Online Start Modal -->
+      <div class="modal-overlay" id="onlineStartModal">
+        <div class="modal-card">
+          <h2 class="modal-title">🌐 ONLİNE OYNA (WebRTC)</h2>
+          <p class="modal-subtitle">Farklı bilgisayardan 4 haneli kod ile eşleşin!</p>
+          
+          <!-- Mode Choice View -->
+          <div id="onlineModeChoiceView" class="online-view-section">
+            <div class="online-choice-grid">
+              <button class="online-choice-card" id="btnOnlineCreateRoom">
+                <span class="online-card-icon">🏠</span>
+                <span class="online-card-title">Oda Kur (Host)</span>
+                <span class="online-card-desc">4 haneli kod oluştur, karakter ve haritayı belirle.</span>
+              </button>
+              <button class="online-choice-card" id="btnOnlineJoinRoom">
+                <span class="online-card-icon">🔑</span>
+                <span class="online-card-title">Odaya Katıl (Guest)</span>
+                <span class="online-card-desc">Hostun verdiği 4 haneli kodu girerek odaya katıl.</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Create Room View (Host) -->
+          <div id="onlineHostView" class="online-view-section" style="display: none;">
+            <div class="online-status-box">
+              <span class="online-label">ODA KODUNUZ:</span>
+              <div class="online-pin-display" id="hostPinDisplay">----</div>
+              <p class="online-hint">Bu 4 haneli kodu rakibinize söyleyin.</p>
+              <div class="online-status-badge" id="hostStatusBadge">⏳ Misafir oyuncu bekleniyor...</div>
+            </div>
+
+            <div class="control-btn-group" style="margin-top: 15px;">
+              <button class="btn btn-primary" id="btnHostStartMatch" disabled>▶ Maçı Başlat</button>
+            </div>
+          </div>
+
+          <!-- Join Room View (Guest) -->
+          <div id="onlineGuestView" class="online-view-section" style="display: none;">
+            <div class="online-input-box">
+              <label for="guestPinInput" class="online-label">4 HANELİ ODA KODU:</label>
+              <div style="display: flex; gap: 10px; justify-content: center; align-items: center;">
+                <input type="text" id="guestPinInput" maxlength="4" placeholder="" class="online-pin-input" autocomplete="off" />
+                <button class="btn btn-primary" id="btnGuestJoinSubmit">Katıl</button>
+              </div>
+              <div class="online-status-badge" id="guestStatusBadge" style="margin-top: 12px;">🔑 Kod girin ve Katıl butonuna basın.</div>
+            </div>
+
+            <!-- Host Settings Sync Preview for Guest -->
+            <div class="online-preview-box" id="guestConfigPreview" style="display: none; margin-top: 12px;">
+              <span class="online-label" style="font-size: 0.82rem;">SEÇİLEN AYARLAR (HOST):</span>
+              <div class="online-preview-grid">
+                <div class="online-preview-item">🔵 P1: <span id="prevP1Char">Katara</span></div>
+                <div class="online-preview-item">🔴 P2: <span id="prevP2Char">Zuko</span></div>
+                <div class="online-preview-item">🗺️ Harita: <span id="prevMap">Buz</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="control-btn-group" style="margin-top: 15px;">
+            <button class="btn btnReturnHub">🏠 Ana Menüye Dön</button>
           </div>
         </div>
       </div>
@@ -232,7 +297,9 @@
 
   </div>
 
-  <!-- Game Engine Scripts -->
+  <!-- WebRTC & Game Engine Scripts -->
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <script src="js/onlineManager.js?v=56"></script>
   <script src="js/audio.js?v=56"></script>
   <script src="js/effects.js?v=56"></script>
   <script src="js/physics.js?v=56"></script>

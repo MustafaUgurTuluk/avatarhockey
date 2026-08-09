@@ -140,6 +140,9 @@ class AvatarElementGame {
     this.isPaused = false;
     this.isPlaying = false;
     this.isAiMode = false;
+    this.isOnlineMode = false;
+    this.isHost = false;
+    this.isGuest = false;
     this.winner = null;
     this.selectedMap = 'ice';
     this.windState = 'active'; // 'active' or 'calm'
@@ -221,12 +224,23 @@ class AvatarElementGame {
     });
   }
 
+  notifyRoomConfigChange() {
+    if (window.onlineManager && window.onlineManager.isHost && window.onlineManager.isConnected) {
+      window.onlineManager.sendRoomConfig({
+        p1Char: this.p1CharKey,
+        p2Char: this.p2CharKey,
+        map: this.selectedMap
+      });
+    }
+  }
+
   setupEvents() {
     document.querySelectorAll('.p1-char-card').forEach((card) => {
       card.addEventListener('click', () => {
         document.querySelectorAll('.p1-char-card').forEach(c => c.classList.remove('active'));
         card.classList.add('active');
         this.p1CharKey = card.dataset.char;
+        this.notifyRoomConfigChange();
       });
     });
     document.querySelectorAll('.p2-char-card').forEach((card) => {
@@ -234,6 +248,7 @@ class AvatarElementGame {
         document.querySelectorAll('.p2-char-card').forEach(c => c.classList.remove('active'));
         card.classList.add('active');
         this.p2CharKey = card.dataset.char;
+        this.notifyRoomConfigChange();
       });
     });
 
@@ -242,21 +257,41 @@ class AvatarElementGame {
         document.querySelectorAll('.map-card').forEach(c => c.classList.remove('active'));
         card.classList.add('active');
         this.selectedMap = card.dataset.map;
+        this.notifyRoomConfigChange();
       });
     });
 
     document.getElementById('btnAvatarStart2P')?.addEventListener('click', () => {
+      this.isOnlineMode = false;
       this.isAiMode = false;
       this.startGame();
     });
     document.getElementById('btnAvatarStartAI')?.addEventListener('click', () => {
+      this.isOnlineMode = false;
       this.isAiMode = true;
       this.startGame();
     });
   }
 
+  startOnlineGame(isHost) {
+    this.isOnlineMode = true;
+    this.isHost = isHost;
+    this.isGuest = !isHost;
+    this.isAiMode = false;
+    this.startGame();
+  }
+
   startGame() {
-    this.selectedMap = document.querySelector('.map-card.active')?.dataset.map || 'ice';
+    if (window.onlineManager && window.onlineManager.isConnected) {
+      this.isOnlineMode = true;
+      this.isHost = window.onlineManager.isHost;
+      this.isGuest = window.onlineManager.isGuest;
+      this.isAiMode = false;
+    }
+
+    if (!this.isOnlineMode || this.isHost) {
+      this.selectedMap = document.querySelector('.map-card.active')?.dataset.map || this.selectedMap || 'ice';
+    }
     this.iceMapCanvas = null;
     this.fireMapCanvas = null;
     this.airMapCanvas = null;
@@ -284,8 +319,8 @@ class AvatarElementGame {
     this.earthRockActive = false;
     this.earthRockTimer = 250;
 
-    const p1Char = this.champions[this.p1CharKey];
-    const p2Char = this.champions[this.p2CharKey];
+    const p1Char = this.champions[this.p1CharKey] || this.champions['katara'];
+    const p2Char = this.champions[this.p2CharKey] || this.champions['zuko'];
     this.p1.color = p1Char.color;
     this.p1.height = p1Char.paddleHeight;
     this.p2.color = p2Char.color;
@@ -293,6 +328,7 @@ class AvatarElementGame {
 
     this.updateScoreDisplay();
     this.startModal?.classList.remove('active');
+    document.getElementById('onlineStartModal')?.classList.remove('active');
     this.pauseModal?.classList.remove('active');
     this.winModal?.classList.remove('active');
 
@@ -655,7 +691,72 @@ class AvatarElementGame {
       player.updateVelocity();
     };
 
-    // P1 Movement
+    // Online Mode Input Routing
+    if (this.isOnlineMode) {
+      if (this.isGuest) {
+        // Guest sends local keyboard input (WASD or Arrow keys) to Host
+        const input = {
+          up: !!(this.keys['KeyW'] || this.keys['ArrowUp']),
+          down: !!(this.keys['KeyS'] || this.keys['ArrowDown']),
+          left: !!(this.keys['KeyA'] || this.keys['ArrowLeft']),
+          right: !!(this.keys['KeyD'] || this.keys['ArrowRight']),
+          serve: !!(this.keys['Space'] || this.keys['Enter'] || this.keys['Numpad0']),
+          ability1: !!(this.keys['KeyQ'] || this.keys['Numpad1'] || this.keys['ShiftRight']),
+          ability2: !!(this.keys['KeyE'] || this.keys['KeyP'] || this.keys['Numpad2'])
+        };
+        if (window.onlineManager) {
+          window.onlineManager.sendGuestInput(input);
+        }
+        return;
+      }
+
+      // Online Host: P1 is local (WASD), P2 is Guest via WebRTC
+      applyMovement(this.p1, this.p1CharKey, true);
+
+      // P1 Serve (SPACE)
+      if (this.keyJustPressed['Space']) {
+        this.keyJustPressed['Space'] = false;
+        if (this.servingPlayer === 'p1') this.serveTheBall('p1');
+      }
+      // P1 Ability 1 (Q)
+      if (this.keyJustPressed['KeyQ']) {
+        this.keyJustPressed['KeyQ'] = false;
+        this.triggerAbility('p1');
+      }
+      // P1 Ability 2 (E)
+      if (this.keyJustPressed['KeyE']) {
+        this.keyJustPressed['KeyE'] = false;
+        this.triggerAbility2('p1');
+      }
+
+      // P2 Movement (Remote Guest Inputs)
+      const gi = window.onlineManager ? window.onlineManager.guestInput : {};
+      const charP2 = this.champions[this.p2CharKey];
+      let gDx = 0, gDy = 0;
+      if (gi.up) gDy -= charP2.moveSpeed;
+      if (gi.down) gDy += charP2.moveSpeed;
+      if (gi.left) gDx -= charP2.moveSpeed;
+      if (gi.right) gDx += charP2.moveSpeed;
+
+      applyMovement(this.p2, this.p2CharKey, false, gDx, gDy);
+
+      if (gi.serve && this.servingPlayer === 'p2') {
+        this.serveTheBall('p2');
+      }
+      if (gi.ability1 && !this._lastGuestAbility1) {
+        this.triggerAbility('p2');
+      }
+      this._lastGuestAbility1 = gi.ability1;
+
+      if (gi.ability2 && !this._lastGuestAbility2) {
+        this.triggerAbility2('p2');
+      }
+      this._lastGuestAbility2 = gi.ability2;
+
+      return;
+    }
+
+    // Single-Player (AI) or Local 2-Player Movement
     applyMovement(this.p1, this.p1CharKey, true);
 
     // P1 Serve (SPACE)
@@ -954,35 +1055,28 @@ class AvatarElementGame {
       }
     }
 
-    // Update Zuko Flame Wall (Step-by-step held key growing & reflection)
+    // Update Zuko Flame Wall (Step-by-step auto growing & reflection)
     if (this.flameWallActive) {
-      const isP1 = this.flameWallPlayer === 'p1';
-      const keyHeld = isP1 ? this.keys['KeyE'] : (this.keys['KeyP'] || this.keys['Numpad2']);
       const border = this.table.border;
       const stepH = (this.height - border * 2) / 8; // ~57.5px per block
 
       if (this.flameWallBuilding) {
-        if (keyHeld || (this.isAiMode && !isP1 && this.flameWallStepCount < 4)) {
-          this.flameWallStepTimer++;
-          if (this.flameWallStepTimer >= 12) { // Ignites a new step pair every 12 frames (~0.2s per step)!
-            this.flameWallStepTimer = 0;
-            if (this.flameWallStepCount < this.flameWallMaxSteps) {
-              this.flameWallStepCount++;
-              soundFx.playHit(true, 1.3);
+        this.flameWallStepTimer++;
+        if (this.flameWallStepTimer >= 6) { // Ignites a new step pair every 6 frames (~0.1s per step)!
+          this.flameWallStepTimer = 0;
+          if (this.flameWallStepCount < this.flameWallMaxSteps) {
+            this.flameWallStepCount++;
+            soundFx.playHit(true, 1.3);
 
-              const centerY = this.height / 2;
-              const offsetY = (this.flameWallStepCount - 0.5) * stepH;
-              effects.addHitSparks(this.width / 2, centerY - offsetY, 0, 0, '#ff4400', false);
-              effects.addHitSparks(this.width / 2, centerY + offsetY, 0, 0, '#ff4400', false);
-            } else {
-              this.flameWallBuilding = false;
-            }
+            const centerY = this.height / 2;
+            const offsetY = (this.flameWallStepCount - 0.5) * stepH;
+            effects.addHitSparks(this.width / 2, centerY - offsetY, 0, 0, '#ff4400', false);
+            effects.addHitSparks(this.width / 2, centerY + offsetY, 0, 0, '#ff4400', false);
+          } else {
+            this.flameWallBuilding = false;
           }
-          this.updateHitSpeedMeter(0, `🔥 ZUKO: ALEV DUVARI (${this.flameWallStepCount * 2}/8 KADEMELİ)...`);
-        } else {
-          // Key released: stop building new steps!
-          this.flameWallBuilding = false;
         }
+        this.updateHitSpeedMeter(0, `🔥 ZUKO: ALEV DUVARI ÖRÜLÜYOR (${this.flameWallStepCount * 2}/8)...`);
       } else {
         this.flameWallActiveTimer--;
         if (this.flameWallActiveTimer <= 0) {
@@ -993,24 +1087,27 @@ class AvatarElementGame {
 
       this.flameWallH = this.flameWallStepCount * stepH * 2;
 
-      // Check puck collision with active Flame Wall blocks
+      // Check puck collision with active Flame Wall blocks (Impassable Barrier)
       const centerX = this.width / 2;
       const centerY = this.height / 2;
       const wallMinY = centerY - this.flameWallH / 2;
       const wallMaxY = centerY + this.flameWallH / 2;
 
-      if (Math.abs(this.puck.x - centerX) < this.puck.radius + 9 && this.puck.y >= wallMinY && this.puck.y <= wallMaxY) {
-        const curSpeed = Math.hypot(this.puck.vx, this.puck.vy);
-        const boostSpeed = Math.max(16.0, curSpeed * 1.45); // Super boost speed!
-        const dirX = this.flameWallPlayer === 'p1' ? 1 : -1;
+      if (Math.abs(this.puck.x - centerX) < this.puck.radius + 12 && this.puck.y >= wallMinY - 10 && this.puck.y <= wallMaxY + 10) {
+        const curSpeed = Math.max(8.0, Math.hypot(this.puck.vx, this.puck.vy));
+        
+        // Bounce puck back to whichever side it came from (cannot cross wall)
+        if (this.puck.x < centerX) {
+          this.puck.vx = -Math.abs(this.puck.vx || curSpeed) * 1.1;
+          this.puck.x = centerX - this.puck.radius - 14;
+        } else {
+          this.puck.vx = Math.abs(this.puck.vx || curSpeed) * 1.1;
+          this.puck.x = centerX + this.puck.radius + 14;
+        }
 
-        this.puck.vx = dirX * boostSpeed;
-        this.puck.vy = (this.puck.vy || (Math.random() - 0.5) * 4);
-        this.puck.lastHitBy = this.flameWallPlayer;
-
-        soundFx.playHit(true, 1.8);
-        effects.addHitSparks(this.puck.x, this.puck.y, dirX, 0, '#ff3300', true);
-        this.updateHitSpeedMeter(boostSpeed, '🔥 ALEV DUVARINDAN SÜPER HIZ BOOSTU!');
+        soundFx.playWallHit();
+        effects.addHitSparks(this.puck.x, this.puck.y, this.puck.vx > 0 ? 1 : -1, 0, '#ff4400', false);
+        this.updateHitSpeedMeter(Math.abs(this.puck.vx), '🔥 ALEV DUVARINDAN SEKTİ!');
       }
     }
 
@@ -2115,11 +2212,255 @@ class AvatarElementGame {
 
     // Serve indicator
     this.drawServeIndicator();
+
+    // Live WebRTC Network Diagnostic HUD
+    const isOnline = (this.isOnlineMode) || (window.onlineManager && window.onlineManager.isConnected);
+    if (isOnline && window.onlineManager) {
+      ctx.save();
+      ctx.font = 'bold 13px Outfit, sans-serif';
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'top';
+
+      if (window.onlineManager.isHost) {
+        ctx.fillStyle = '#00ffcc';
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = '#00ffcc';
+        ctx.fillText(`🌐 ONLINE HOST | Sent: ${window.onlineManager.sentFrameCount} f`, this.width - 25, 20);
+      } else if (window.onlineManager.isGuest) {
+        ctx.fillStyle = '#ffcc00';
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = '#ffcc00';
+        ctx.fillText(`🌐 ONLINE GUEST | Recv: ${window.onlineManager.receivedFrameCount} f`, this.width - 25, 20);
+      }
+      ctx.restore();
+    }
+  }
+
+  updateChampionConfigs() {
+    const p1Char = this.champions[this.p1CharKey] || this.champions['katara'];
+    const p2Char = this.champions[this.p2CharKey] || this.champions['zuko'];
+    this.p1.color = p1Char.color;
+    this.p1.height = p1Char.paddleHeight;
+    this.p2.color = p2Char.color;
+    this.p2.height = p2Char.paddleHeight;
+  }
+
+  getNetworkState() {
+    return {
+      p1CharKey: this.p1CharKey,
+      p2CharKey: this.p2CharKey,
+      selectedMap: this.selectedMap,
+      p1: { x: Math.round(this.p1.x), y: Math.round(this.p1.y), vx: this.p1.vx, vy: this.p1.vy },
+      p2: { x: Math.round(this.p2.x), y: Math.round(this.p2.y), vx: this.p2.vx, vy: this.p2.vy },
+      puck: {
+        x: Math.round(this.puck.x),
+        y: Math.round(this.puck.y),
+        vx: this.puck.vx,
+        vy: this.puck.vy,
+        lastHitBy: this.puck.lastHitBy,
+        isWhipped: this.puck.isWhipped
+      },
+      scoreP1: this.scoreP1,
+      scoreP2: this.scoreP2,
+      servingPlayer: this.servingPlayer,
+      serveReady: this.serveReady,
+      goalScored: this.goalScored,
+      winner: this.winner,
+
+      // Ability Cooldowns & Timers
+      p1AbilityCooldown: this.p1AbilityCooldown,
+      p2AbilityCooldown: this.p2AbilityCooldown,
+      p1Ability2Cooldown: this.p1Ability2Cooldown,
+      p2Ability2Cooldown: this.p2Ability2Cooldown,
+      p1FreezeTimer: this.p1FreezeTimer,
+      p2FreezeTimer: this.p2FreezeTimer,
+      p1IceFunnelTimer: this.p1IceFunnelTimer,
+      p2IceFunnelTimer: this.p2IceFunnelTimer,
+      p1EarthWallTimer: this.p1EarthWallTimer,
+      p2EarthWallTimer: this.p2EarthWallTimer,
+      p1WindCatchActive: this.p1WindCatchActive,
+      p2WindCatchActive: this.p2WindCatchActive,
+      flameWallActive: this.flameWallActive,
+      flameWallStepCount: this.flameWallStepCount,
+      flameWallH: this.flameWallH,
+
+      // Map Hazards Sync
+      fireFlameActive: this.fireFlameActive,
+      fireFlameX: Math.round(this.fireFlameX),
+      fireFlameY: Math.round(this.fireFlameY),
+      fireFlameRadius: this.fireFlameRadius,
+      puckFireBoostTimer: this.puckFireBoostTimer,
+
+      iceWaveActive: this.iceWaveActive,
+      iceWaveXLeft: Math.round(this.iceWaveXLeft),
+      iceWaveXRight: Math.round(this.iceWaveXRight),
+
+      airTornadoActive: this.airTornadoActive,
+      airTornadoX: Math.round(this.airTornadoX),
+      airTornadoY: Math.round(this.airTornadoY),
+      airTornadoRadius: this.airTornadoRadius,
+      windState: this.windState,
+      windDirX: this.windDirX,
+      windDirY: this.windDirY,
+
+      earthRockActive: this.earthRockActive,
+      earthRockX: Math.round(this.earthRockX),
+      earthRockY: Math.round(this.earthRockY),
+      earthRockW: this.earthRockW,
+      earthRockH: this.earthRockH,
+
+      // Ability Entities
+      iceBeams: this.iceBeams ? this.iceBeams.map(b => ({ x: Math.round(b.x), y: Math.round(b.y), width: b.width, height: b.height, isP1: b.isP1 })) : [],
+      waterWhips: this.waterWhips ? this.waterWhips.map(w => ({ x: Math.round(w.x), y: Math.round(w.y), width: w.width, height: w.height, isP1: w.isP1 })) : [],
+      boulders: this.boulders ? this.boulders.map(b => ({ x: Math.round(b.x), y: Math.round(b.y), radius: b.radius, isP1: b.isP1, isStopped: b.isStopped })) : [],
+
+      hitSpeedMeterText: this.elHitSpeed ? this.elHitSpeed.innerText : ''
+    };
+  }
+
+  applyNetworkState(state) {
+    if (!state) return;
+
+    // Ensure online guest mode is active and modals are hidden
+    this.isOnlineMode = true;
+    this.isGuest = true;
+    this.isHost = false;
+    this.isPlaying = true;
+    this.isPaused = false;
+
+    if (this.startModal && this.startModal.classList.contains('active')) {
+      this.startModal.classList.remove('active');
+    }
+    const onlineModal = document.getElementById('onlineStartModal');
+    if (onlineModal && onlineModal.classList.contains('active')) {
+      onlineModal.classList.remove('active');
+    }
+
+    // Sync selected characters & map
+    if (state.p1CharKey && this.p1CharKey !== state.p1CharKey) {
+      this.p1CharKey = state.p1CharKey;
+    }
+    if (state.p2CharKey && this.p2CharKey !== state.p2CharKey) {
+      this.p2CharKey = state.p2CharKey;
+    }
+    if (state.selectedMap && this.selectedMap !== state.selectedMap) {
+      this.selectedMap = state.selectedMap;
+      this.iceMapCanvas = null;
+      this.fireMapCanvas = null;
+      this.airMapCanvas = null;
+      this.earthMapCanvas = null;
+    }
+    this.updateChampionConfigs();
+
+    // Sync Player & Puck positions
+    if (state.p1) {
+      this.p1.x = state.p1.x;
+      this.p1.y = state.p1.y;
+      this.p1.vx = state.p1.vx;
+      this.p1.vy = state.p1.vy;
+    }
+    if (state.p2) {
+      this.p2.x = state.p2.x;
+      this.p2.y = state.p2.y;
+      this.p2.vx = state.p2.vx;
+      this.p2.vy = state.p2.vy;
+    }
+    if (state.puck) {
+      this.puck.x = state.puck.x;
+      this.puck.y = state.puck.y;
+      this.puck.vx = state.puck.vx;
+      this.puck.vy = state.puck.vy;
+      this.puck.lastHitBy = state.puck.lastHitBy;
+      this.puck.isWhipped = state.puck.isWhipped;
+    }
+
+    // Match Status
+    if (this.scoreP1 !== state.scoreP1 || this.scoreP2 !== state.scoreP2) {
+      this.scoreP1 = state.scoreP1;
+      this.scoreP2 = state.scoreP2;
+      this.updateScoreDisplay();
+    }
+
+    this.servingPlayer = state.servingPlayer;
+    this.serveReady = state.serveReady;
+    this.goalScored = state.goalScored;
+
+    if (state.winner && !this.winner) {
+      this.handleWin(state.winner);
+    }
+
+    // Ability Cooldowns & Timers
+    this.p1AbilityCooldown = state.p1AbilityCooldown;
+    this.p2AbilityCooldown = state.p2AbilityCooldown;
+    this.p1Ability2Cooldown = state.p1Ability2Cooldown;
+    this.p2Ability2Cooldown = state.p2Ability2Cooldown;
+    this.p1FreezeTimer = state.p1FreezeTimer;
+    this.p2FreezeTimer = state.p2FreezeTimer;
+    this.p1IceFunnelTimer = state.p1IceFunnelTimer;
+    this.p2IceFunnelTimer = state.p2IceFunnelTimer;
+    this.p1EarthWallTimer = state.p1EarthWallTimer;
+    this.p2EarthWallTimer = state.p2EarthWallTimer;
+    this.p1WindCatchActive = state.p1WindCatchActive;
+    this.p2WindCatchActive = state.p2WindCatchActive;
+    this.flameWallActive = state.flameWallActive;
+    this.flameWallStepCount = state.flameWallStepCount;
+    this.flameWallH = state.flameWallH;
+
+    // Map Hazards Sync
+    this.fireFlameActive = !!state.fireFlameActive;
+    this.fireFlameX = state.fireFlameX || 0;
+    this.fireFlameY = state.fireFlameY || 0;
+    this.fireFlameRadius = state.fireFlameRadius || 38;
+    this.puckFireBoostTimer = state.puckFireBoostTimer || 0;
+
+    this.iceWaveActive = !!state.iceWaveActive;
+    this.iceWaveXLeft = state.iceWaveXLeft || 0;
+    this.iceWaveXRight = state.iceWaveXRight || 0;
+
+    this.airTornadoActive = !!state.airTornadoActive;
+    this.airTornadoX = state.airTornadoX || 0;
+    this.airTornadoY = state.airTornadoY || 0;
+    this.airTornadoRadius = state.airTornadoRadius || 42;
+    this.windState = state.windState || 'active';
+    this.windDirX = state.windDirX || 1;
+    this.windDirY = state.windDirY || 0.5;
+
+    this.earthRockActive = !!state.earthRockActive;
+    this.earthRockX = state.earthRockX || 0;
+    this.earthRockY = state.earthRockY || 0;
+    this.earthRockW = state.earthRockW || 64;
+    this.earthRockH = state.earthRockH || 64;
+
+    // Ability Entities
+    if (state.iceBeams) this.iceBeams = state.iceBeams;
+    if (state.waterWhips) this.waterWhips = state.waterWhips;
+    if (state.boulders) this.boulders = state.boulders;
+
+    if (state.hitSpeedMeterText && this.elHitSpeed) {
+      this.elHitSpeed.innerText = state.hitSpeedMeterText;
+    }
+    this.updateHUDMeters();
   }
 
   step() {
     if (this.isPlaying && !this.isPaused) {
-      this.updatePhysics();
+      const isOnlineGuest = (this.isOnlineMode && this.isGuest) || (window.onlineManager && window.onlineManager.isGuest && window.onlineManager.isConnected);
+      if (isOnlineGuest) {
+        this.isOnlineMode = true;
+        this.isGuest = true;
+        this.isHost = false;
+        this.isAiMode = false;
+
+        // Guest sends local key states & receives network state from Host
+        this.handlePlayerMovement();
+      } else {
+        // Single player, local 2P, or online Host updates physics loop
+        this.updatePhysics();
+        const isOnlineHost = (this.isOnlineMode && this.isHost) || (window.onlineManager && window.onlineManager.isHost && window.onlineManager.isConnected);
+        if (isOnlineHost && window.onlineManager) {
+          window.onlineManager.sendGameState(this.getNetworkState());
+        }
+      }
     }
     this.render();
   }
