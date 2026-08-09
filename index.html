@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Avatar Element Hockey - Bükücü Savaşları</title>
+  <meta name="description" content="Tek klavyede 2 kişilik veya bot'a karşı oynanabilen Avatar Element Hokeyi oyunu.">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div class="game-container">
+    
+    <!-- Top HUD Bar -->
+    <header class="hud-bar">
+      <!-- Left section: Return Button & Player 1 Score -->
+      <div class="hud-left-section">
+        <button class="btn btnReturnHub" title="Menüye Dön">🏠 Menü</button>
+
+        <!-- Player 1 Score & Ability Meter -->
+        <div class="player-score-card p1">
+          <div class="player-score-main">
+            <div class="player-avatar">P1</div>
+            <div class="player-info">
+              <span class="player-name">OYUNCU 1</span>
+            </div>
+            <span class="score-display" id="scoreP1">0</span>
+          </div>
+          <!-- Strike Cooldown Bar P1 -->
+          <div class="energy-bar-container" title="P1 Vuruş">
+            <div class="energy-bar-fill" id="p1EnergyBar">⚡ VURUŞ HAZIR</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Center Title & Speed Meter -->
+      <div class="game-center-info">
+        <h1 class="game-title">AVATAR HOKEY</h1>
+        <div class="hit-speed-meter" id="hitSpeedMeter">Vuruş Hızı: 0 km/h</div>
+      </div>
+
+      <!-- Player 2 Score & Ability Meter -->
+      <div class="player-score-card p2">
+        <div class="player-score-main">
+          <div class="player-avatar">P2</div>
+          <div class="player-info">
+            <span class="player-name">OYUNCU 2</span>
+          </div>
+          <span class="score-display" id="scoreP2">0</span>
+        </div>
+        <!-- Strike Cooldown Bar P2 -->
+        <div class="energy-bar-container" title="P2 Vuruş">
+          <div class="energy-bar-fill" id="p2EnergyBar">⚡ VURUŞ HAZIR</div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Canvas Wrapper with Modals -->
+    <main class="canvas-wrapper">
+      <canvas id="gameCanvas" width="960" height="540"></canvas>
+
+      <!-- Avatar Champions & Element Hockey Start Modal -->
+      <div class="modal-overlay active" id="avatarStartModal">
+        <div class="modal-card wide">
+          <h2 class="modal-title">AVATAR ELEMENT HOCKEY</h2>
+          <p class="modal-subtitle">Bükücünü ve haritanı seçip oyuna başla!</p>
+          
+          <!-- Avatar Champion Selector P1 -->
+          <div class="char-select-section">
+            <span class="player-name" style="color: var(--p1-color)">Oyuncu 1 Bükücü Seçimi:</span>
+            <div class="char-select-grid">
+              <div class="char-card p1-char-card active" data-char="katara">
+                <span class="char-avatar-icon">🌊</span>
+                <span class="char-name">Katara</span>
+                <span class="char-elem-tag">❄️ Aktif: Buz Şeridi Atar</span>
+              </div>
+              <div class="char-card p1-char-card" data-char="zuko">
+                <span class="char-avatar-icon">🔥</span>
+                <span class="char-name">Zuko</span>
+                <span class="char-elem-tag">🔥 Aktif: Ateş Topu</span>
+              </div>
+              <div class="char-card p1-char-card" data-char="aang">
+                <span class="char-avatar-icon">🌪️</span>
+                <span class="char-name">Aang</span>
+                <span class="char-elem-tag">💨 Aktif: Rüzgar ile Yakala</span>
+              </div>
+              <div class="char-card p1-char-card" data-char="toph">
+                <span class="char-avatar-icon">🪨</span>
+                <span class="char-name">Toph</span>
+                <span class="char-elem-tag">🪨 Aktif: Kaya Duvarı Ör</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Avatar Champion Selector P2 -->
+          <div class="char-select-section">
+            <span class="player-name" style="color: var(--p2-color)">Oyuncu 2 Bükücü Seçimi:</span>
+            <div class="char-select-grid">
+              <div class="char-card p2-char-card" data-char="katara">
+                <span class="char-avatar-icon">🌊</span>
+                <span class="char-name">Katara</span>
+                <span class="char-elem-tag">❄️ Aktif: Buz Şeridi Atar</span>
+              </div>
+              <div class="char-card p2-char-card active" data-char="zuko">
+                <span class="char-avatar-icon">🔥</span>
+                <span class="char-name">Zuko</span>
+                <span class="char-elem-tag">🔥 Aktif: Ateş Topu</span>
+              </div>
+              <div class="char-card p2-char-card" data-char="aang">
+                <span class="char-avatar-icon">🌪️</span>
+                <span class="char-name">Aang</span>
+                <span class="char-elem-tag">💨 Aktif: Rüzgar ile Yakala</span>
+              </div>
+              <div class="char-card p2-char-card" data-char="toph">
+                <span class="char-avatar-icon">🪨</span>
+                <span class="char-name">Toph</span>
+                <span class="char-elem-tag">🪨 Aktif: Kaya Duvarı Ör</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Map Selector -->
+          <div class="char-select-section">
+            <span class="player-name" style="color: var(--text-color)">Harita Seçimi:</span>
+            <div class="char-select-grid map-select-grid">
+              <div class="char-card map-card active" data-map="ice">
+                <span class="char-avatar-icon">❄️</span>
+                <span class="char-name">Buz</span>
+                <span class="char-elem-tag">Zemin kaygandır (Katara hariç)</span>
+              </div>
+              <div class="char-card map-card" data-map="fire">
+                <span class="char-avatar-icon">🌋</span>
+                <span class="char-name">Ateş</span>
+                <span class="char-elem-tag">Orta alan yasaklıdır (Zuko hariç)</span>
+              </div>
+              <div class="char-card map-card" data-map="air">
+                <span class="char-avatar-icon">💨</span>
+                <span class="char-name">Hava</span>
+                <span class="char-elem-tag">Rüzgar akımı iter (Aang hariç)</span>
+              </div>
+              <div class="char-card map-card" data-map="earth">
+                <span class="char-avatar-icon">🪨</span>
+                <span class="char-name">Toprak</span>
+                <span class="char-elem-tag">Orta alan yavaşlatır (Toph hariç)</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="control-btn-group">
+            <button class="btn btn-primary" id="btnAvatarStart2P">🎮 2 Kişilik Oyna</button>
+            <button class="btn" id="btnAvatarStartAI">🤖 Bot'a Karşı Oyna</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pause Modal Overlay -->
+      <div class="modal-overlay" id="pauseModal">
+        <div class="modal-card">
+          <h2 class="modal-title">OYUN DURDURULDU</h2>
+          <p class="modal-subtitle">Devam etmek veya seçim yapmak için menüyü kullanın.</p>
+          <div class="control-btn-group">
+            <button class="btn btn-primary" id="btnResume">▶ Devam Et (ESC)</button>
+            <button class="btn" id="btnRestart">🔄 Yeniden Başlat</button>
+            <button class="btn btnReturnHub">🏠 Menü</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Win Modal Overlay -->
+      <div class="modal-overlay" id="winModal">
+        <div class="modal-card">
+          <div class="winner-banner winner-p1" id="winnerText">OYUNCU 1 KAZANDI!</div>
+          <p class="modal-subtitle">Tebrikler! Maçı kazanmak için 7 gole ilk ulaşan sen oldun.</p>
+          <div class="control-btn-group">
+            <button class="btn btn-primary" id="btnRestart">🏆 Yeniden Oyna</button>
+            <button class="btn btnReturnHub">🏠 Menü</button>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Bottom Controls & Sound Toggle -->
+    <footer class="bottom-controls">
+      <button class="btn" id="btnSoundToggle">🔊 Ses: Açık</button>
+    </footer>
+
+  </div>
+
+  <!-- Game Engine Scripts -->
+  <script src="js/audio.js?v=55"></script>
+  <script src="js/effects.js?v=55"></script>
+  <script src="js/physics.js?v=55"></script>
+  <script src="js/avatarGame.js?v=55"></script>
+  <script src="js/game.js?v=55"></script>
+</body>
+</html>
