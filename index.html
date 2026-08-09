@@ -13,9 +13,10 @@
     
     <!-- Top HUD Bar -->
     <header class="hud-bar">
-      <!-- Left section: Return Button & Player 1 Score -->
+      <!-- Left section: Return Button, Settings Button & Player 1 Score -->
       <div class="hud-left-section">
         <button class="btn btnReturnHub" title="Menüye Dön">🏠 Menü</button>
+        <button class="btn btnSettingsToggle" title="Oyun Kontrolleri">⚙️ Ayarlar</button>
 
         <!-- Player 1 Score & Ability Meter -->
         <div class="player-score-card p1">
@@ -153,6 +154,48 @@
         </div>
       </div>
 
+      <!-- Settings / Controls Modal Overlay -->
+      <div class="modal-overlay" id="settingsModal">
+        <div class="modal-card">
+          <h2 class="modal-title">⚙️ OYUN KONTROLLERİ</h2>
+          <p class="modal-subtitle">1. ve 2. Oyuncu Tuş Kontrolleri</p>
+          
+          <div class="guide-box" style="text-align: left; margin: 15px 0; background: rgba(0,0,0,0.3); padding: 14px; border-radius: 12px; border: 1px solid var(--border-glass);">
+            <div style="margin-bottom: 12px;">
+              <span style="color: var(--p1-color); font-weight: 800; font-size: 1rem;">🔵 Oyuncu 1 (P1):</span>
+              <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 6px; font-size: 0.88rem;">
+                <span>• <b>Hareket:</b> <span class="key-badge p1">W</span> <span class="key-badge p1">A</span> <span class="key-badge p1">S</span> <span class="key-badge p1">D</span></span>
+                <span>• <b>Top Gönderme / Vuruş:</b> <span class="key-badge p1">SPACE</span></span>
+                <span>• <b>1. Yetenek:</b> <span class="key-badge p1">Q</span></span>
+                <span>• <b>2. Yetenek:</b> <span class="key-badge p1">E</span></span>
+              </div>
+            </div>
+            
+            <div style="height: 1px; background: var(--border-glass); margin: 10px 0;"></div>
+
+            <div style="margin-bottom: 12px;">
+              <span style="color: var(--p2-color); font-weight: 800; font-size: 1rem;">🔴 Oyuncu 2 (P2):</span>
+              <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 6px; font-size: 0.88rem;">
+                <span>• <b>Hareket:</b> <span class="key-badge p2">YÖN OKLARI</span></span>
+                <span>• <b>Top Gönderme / Vuruş:</b> <span class="key-badge p2">ENTER</span> / <span class="key-badge p2">NUMPAD 0</span></span>
+                <span>• <b>1. Yetenek:</b> <span class="key-badge p2">RSHIFT</span> / <span class="key-badge p2">NUMPAD 1</span></span>
+                <span>• <b>2. Yetenek:</b> <span class="key-badge p2">P</span> / <span class="key-badge p2">NUMPAD 2</span></span>
+              </div>
+            </div>
+
+            <div style="height: 1px; background: var(--border-glass); margin: 10px 0;"></div>
+
+            <div style="font-size: 0.85rem; color: var(--text-muted); text-align: center;">
+              ⏸️ <b>Oyunu Durdurma:</b> <span class="key-badge">ESC</span>
+            </div>
+          </div>
+
+          <div class="control-btn-group">
+            <button class="btn btn-primary" id="btnCloseSettings" style="width: 100%;">Tamam</button>
+          </div>
+        </div>
+      </div>
+
       <!-- Pause Modal Overlay -->
       <div class="modal-overlay" id="pauseModal">
         <div class="modal-card">
@@ -181,16 +224,19 @@
 
     <!-- Bottom Controls & Sound Toggle -->
     <footer class="bottom-controls">
-      <button class="btn" id="btnSoundToggle">🔊 Ses: Açık</button>
+      <div style="display: flex; gap: 10px;">
+        <button class="btn btnSettingsToggle" title="Oyun Kontrolleri">⚙️ Ayarlar</button>
+        <button class="btn" id="btnSoundToggle">🔊 Ses: Açık</button>
+      </div>
     </footer>
 
   </div>
 
   <!-- Game Engine Scripts -->
-  <script src="js/audio.js?v=55"></script>
-  <script src="js/effects.js?v=55"></script>
-  <script src="js/physics.js?v=55"></script>
-  <script src="js/avatarGame.js?v=55"></script>
-  <script src="js/game.js?v=55"></script>
+  <script src="js/audio.js?v=56"></script>
+  <script src="js/effects.js?v=56"></script>
+  <script src="js/physics.js?v=56"></script>
+  <script src="js/avatarGame.js?v=56"></script>
+  <script src="js/game.js?v=56"></script>
 </body>
 </html>

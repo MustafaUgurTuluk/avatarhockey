@@ -20,9 +20,24 @@ class HockeyHubManager {
       });
     });
 
+    // Settings / Controls Modal
+    const settingsModal = document.getElementById('settingsModal');
+    document.querySelectorAll('.btnSettingsToggle').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.currentTarget.blur();
+        settingsModal?.classList.add('active');
+      });
+    });
+
+    document.getElementById('btnCloseSettings')?.addEventListener('click', (e) => {
+      e.currentTarget.blur();
+      settingsModal?.classList.remove('active');
+    });
+
     // Return to Avatar Character & Map Selection Menu button
     document.querySelectorAll('.btnReturnHub').forEach((btn) => {
       btn.addEventListener('click', () => {
+        settingsModal?.classList.remove('active');
         this.openMenuHub();
       });
     });
