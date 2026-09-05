@@ -45,10 +45,11 @@ Her karakter kendine has kütle, ivmelenme, vuruş gücü ve iki aktif bükme ye
 * **Hızlı Hız Sönümlenmesi (Dynamic Decay)**: Top kazandığı aşırı hızı zamanla dengeli bir biçimde kaybeder, savunma oyuncularına stratejik reaksiyon payı tanır.
 * **Arkadan Vuruş Cezası & Stun (Back-Hit Penalty)**: Top bükücüye arkadan çarparsa yetenek barları tamamen sıfırlanır ve bükücü anlık sersemletme (stun) alır. Başının üstünde dönen yıldızlar belirir.
 * **Dengeli Yetenek Dolum Süreleri**: Yeteneklerin dolum süreleri taktiksel derinliği koruyacak şekilde optimize edilmiştir.
-* **Ardışık Ralli İvmesi (Rally Heat)**: İki oyuncu arasında hızlı paslaşmalar devam ettikçe her vuruşta top katlanarak hızlanır:
+* **Ardışık Ralli İvmesi & İleri Hücum Şartı (Rally Heat & Forward Drive)**: İki oyuncu topun üzerine doğru hareket ederek karşılıklı vuruş yaptıkça ralli katlanarak hızlanır; topun üzerine koşulmayan durumlarda (sabit durma veya geri çekilme) ralli sıfırlanır:
   * `🔥 ATEŞLİ RALLİ X3` (13 - 16 km/h)
   * `⚡ SONİK RALLİ X5` (16 - 19 km/h)
   * `💥 HİPER RALLİ X7+` (20 - 21.5 km/h)
+* **Alevli Kuyruklu Yıldız İzi & Süper Hız (Blazing Comet Trail)**: Ateş haritasındaki alevli alandan geçen veya Zuko'nun Alev Duvarı'na çarpan top, arkasında kor rengi alev izi ve kıvılcımlar bırakarak 23.0 - 24.5 km/h süpersonik hızlara ivmelenir.
 * **Yastıklama (Defensive Cushion)**: Geri çekilirken vurulduğunda top yumuşatılır ve kontrol altına alınır.
 * **Falso & Açı Saptırma (Spin & Slice)**: Dikey hareket halindeyken vurulduğunda falso ve kesme açısı verilir.
 

@@ -194,6 +194,7 @@ class AvatarElementGame {
     this.fireFlameRadius = 38;
     this.fireFlameDuration = 0;
     this.puckFireBoostTimer = 0;
+    this.firePuckTrail = [];
 
     // Ice Map: Center Tidal Wave Sweeping Paddles
     this.iceWaveTimer = 350;
@@ -445,6 +446,7 @@ class AvatarElementGame {
     this.p2EarthWallTimer = 0;
     this.fireFlameActive = false;
     this.puckFireBoostTimer = 0;
+    this.firePuckTrail = [];
     this.fireFlameTimer = 200;
     this.iceWaveActive = false;
     this.iceWaveTimer = 350;
@@ -498,6 +500,8 @@ class AvatarElementGame {
     this.puck.vy = 0;
     this.puck.lastHitBy = null;
     this.puck.isWhipped = null;
+    this.puckFireBoostTimer = 0;
+    this.firePuckTrail = [];
     effects.clearTrail();
     
     this.updateHitSpeedMeter(0);
@@ -1193,6 +1197,8 @@ class AvatarElementGame {
         }
         this.puck.vy = forwardSpeed * Math.sin(deflectAngle);
         this.puck.lastHitBy = playerTag;
+        this.rallyCount = 0;
+        this.rallyHeat = 0;
         soundFx.playBonk();
         effects.addHitSparks(this.puck.x, this.puck.y, isP1 ? 1 : -1, 0, '#ffff00', true);
         this.screenShakeTimer = 6;
@@ -1235,44 +1241,7 @@ class AvatarElementGame {
         const relY = (this.puck.y - paddle.y) / (paddle.height / 2);
         const deflectAngle = relY * 0.62;
 
-        // 1. Rally Tracking (Hızlı Paslaşma & Seri Vuruş Sayacı)
-        const currentFrame = this.gameFrame || 0;
-        const framesSinceLastHit = currentFrame - (this.lastHitFrame || 0);
-        const isConsecutiveVolley = (this.puck.lastHitBy && this.puck.lastHitBy !== playerTag);
-
-        if (isConsecutiveVolley) {
-          this.rallyCount = (this.rallyCount || 0) + 1;
-        } else if (!this.puck.lastHitBy) {
-          this.rallyCount = 1;
-        }
-        this.lastHitFrame = currentFrame;
-
-        // 2. Incoming Speed & Base Momentum
-        const currentPuckSpeed = Math.hypot(this.puck.vx, this.puck.vy);
-        let baseSpeed = Math.max(this.baseSpeed, currentPuckSpeed);
-
-        // 3. Consecutive Rally Speed Multiplier (Her ardışık başarılı pasta hız artar)
-        let rallyMultiplier = 1.0;
-        if (this.rallyCount >= 2) {
-          const stage = Math.min(8, this.rallyCount);
-          rallyMultiplier += (stage - 1) * 0.085;
-        }
-
-        // 4. Rapid / Close-Quarter Ping-Pong Boost (Yakın Mesafe Hızlı Sekme Bonusu)
-        let rapidBonus = 0;
-        if (framesSinceLastHit > 0 && framesSinceLastHit < 75) {
-          const quickness = 1.0 - (framesSinceLastHit / 75);
-          rapidBonus += quickness * 2.8;
-        }
-
-        // Extra close proximity bonus if paddles are close to each other
-        const paddleDistX = Math.abs(this.p1.x - this.p2.x);
-        if (paddleDistX < this.width * 0.55) {
-          const proximity = 1.0 - (paddleDistX / (this.width * 0.55));
-          rapidBonus += proximity * 2.2;
-        }
-
-        // 5. Offensive Smash / Drive vs Defensive Cushioning
+        // 1. Paddle Movement Direction & Velocity Check
         const paddleMoveVx = paddle.moveVx !== undefined ? paddle.moveVx : paddle.vx;
         const paddleMoveVy = paddle.moveVy !== undefined ? paddle.moveVy : paddle.vy;
 
@@ -1281,6 +1250,53 @@ class AvatarElementGame {
         const forwardSpeed = Math.abs(paddleMoveVx);
         const forwardRatio = forwardSpeed / char.moveSpeed;
 
+        // 2. Rally Tracking (Hızlı Paslaşma & Seri Vuruş Sayacı)
+        // Karakterler topun üzerine doğru hareket etmiyorsa bu durumda rally olmayacak!
+        const currentFrame = this.gameFrame || 0;
+        const framesSinceLastHit = currentFrame - (this.lastHitFrame || 0);
+        const isConsecutiveVolley = (this.puck.lastHitBy && this.puck.lastHitBy !== playerTag);
+
+        if (movingForward) {
+          if (isConsecutiveVolley) {
+            this.rallyCount = (this.rallyCount || 0) + 1;
+          } else if (!this.puck.lastHitBy) {
+            this.rallyCount = 1;
+          }
+        } else {
+          // Karakter topun üzerine doğru hareket etmiyorsa rally sıfırlanır
+          this.rallyCount = 0;
+          this.rallyHeat = 0;
+        }
+        this.lastHitFrame = currentFrame;
+
+        // 3. Incoming Speed & Base Momentum
+        const currentPuckSpeed = Math.hypot(this.puck.vx, this.puck.vy);
+        let baseSpeed = Math.max(this.baseSpeed, currentPuckSpeed);
+
+        // 4. Consecutive Rally Speed Multiplier (Yalnızca ileri hücumda rally çarpanı devreye girer)
+        let rallyMultiplier = 1.0;
+        if (movingForward && this.rallyCount >= 2) {
+          const stage = Math.min(8, this.rallyCount);
+          rallyMultiplier += (stage - 1) * 0.085;
+        }
+
+        // 5. Rapid / Close-Quarter Ping-Pong Boost (Yakın Mesafe Hızlı Sekme Bonusu - Yalnızca ileri hamlede)
+        let rapidBonus = 0;
+        if (movingForward) {
+          if (framesSinceLastHit > 0 && framesSinceLastHit < 75) {
+            const quickness = 1.0 - (framesSinceLastHit / 75);
+            rapidBonus += quickness * 2.8;
+          }
+
+          // Extra close proximity bonus if paddles are close to each other
+          const paddleDistX = Math.abs(this.p1.x - this.p2.x);
+          if (paddleDistX < this.width * 0.55) {
+            const proximity = 1.0 - (paddleDistX / (this.width * 0.55));
+            rapidBonus += proximity * 2.2;
+          }
+        }
+
+        // 6. Offensive Smash / Drive vs Defensive Cushioning
         let driveBonus = 0;
         let isDriveSmash = false;
         let isCushion = false;
@@ -1306,7 +1322,7 @@ class AvatarElementGame {
           rallyMultiplier *= 0.82;
         }
 
-        // 6. Compute Final Outgoing Speed
+        // 7. Compute Final Outgoing Speed
         let speed = (baseSpeed * rallyMultiplier) + rapidBonus + driveBonus;
 
         // Ensure at least character's minimum strike force on full forward smashes
@@ -1371,6 +1387,8 @@ class AvatarElementGame {
         else this.puck.y = pMaxY + this.puck.radius;
         this.puck.vy = -this.puck.vy;
         this.puck.lastHitBy = playerTag;
+        this.rallyCount = 0;
+        this.rallyHeat = 0;
         soundFx.playHit(false, 0.5);
       }
     }
@@ -1655,8 +1673,8 @@ class AvatarElementGame {
 
       if (Math.abs(this.puck.x - centerX) < this.puck.radius + 12 && this.puck.y >= wallMinY - 10 && this.puck.y <= wallMaxY + 10) {
         // Boost puck speed just like passing over flames (fire map hazard)
-        this.puckFireBoostTimer = 140; // ~2.3 seconds continuous flame boost!
-        const boostSpeed = 19.5;
+        this.puckFireBoostTimer = 160; // ~2.7 seconds continuous flame boost!
+        const boostSpeed = 23.0;
 
         // Bounce puck back to whichever side it came from (cannot cross wall)
         if (this.puck.x < centerX) {
@@ -1839,13 +1857,13 @@ class AvatarElementGame {
     if (this.puckFireBoostTimer > 0) {
       this.puckFireBoostTimer--;
       const currentSpeed = Math.hypot(this.puck.vx, this.puck.vy);
-      if (currentSpeed > 0 && currentSpeed < 18.5) {
-        const scale = 18.5 / currentSpeed;
+      if (currentSpeed > 0 && currentSpeed < 22.0) {
+        const scale = 22.0 / currentSpeed;
         this.puck.vx *= scale;
         this.puck.vy *= scale;
       }
-      if (Math.random() < 0.45) {
-        effects.addHitSparks(this.puck.x, this.puck.y, (Math.random() - 0.5), (Math.random() - 0.5), '#ff6600', false);
+      if (Math.random() < 0.6) {
+        effects.addHitSparks(this.puck.x, this.puck.y, (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2, '#ff6600', false);
       }
     }
 
@@ -1894,10 +1912,10 @@ class AvatarElementGame {
         const dx = this.puck.x - this.fireFlameX;
         const dy = this.puck.y - this.fireFlameY;
         if (Math.hypot(dx, dy) < this.fireFlameRadius + this.puck.radius) {
-          this.puckFireBoostTimer = 140; // ~2.3 seconds super speed boost
+          this.puckFireBoostTimer = 160; // ~2.7 seconds super speed boost
           this.fireFlameActive = false;
           const currentSpd = Math.hypot(this.puck.vx, this.puck.vy) || 1;
-          const boostedSpd = Math.min(22.0, Math.max(19.0, currentSpd * 1.5));
+          const boostedSpd = Math.min(24.5, Math.max(22.5, currentSpd * 1.65));
           this.puck.vx = (this.puck.vx / currentSpd) * boostedSpd;
           this.puck.vy = (this.puck.vy / currentSpd) * boostedSpd;
           soundFx.playHit(true, 2.0);
@@ -1905,7 +1923,7 @@ class AvatarElementGame {
           effects.addHitSparks(this.puck.x, this.puck.y, 0, 0, '#ff3300', true);
           effects.addHitSparks(this.puck.x, this.puck.y, 0, 0, '#ffcc00', true);
           this.screenShakeTimer = 8;
-          this.updateHitSpeedMeter(boostedSpd, '🔥 SÜPER ALEV BOOSTU (+%50 HIZ)!');
+          this.updateHitSpeedMeter(boostedSpd, '🔥 SÜPER ALEV BOOSTU (+%65 HIZ)!');
         }
       } else {
         if (!this.fireFlameTimer) this.fireFlameTimer = 300;
@@ -2200,7 +2218,13 @@ class AvatarElementGame {
     this.puck.currentSpeed = Math.hypot(this.puck.vx, this.puck.vy);
     
     // When in a heated rally, preserve momentum longer, but decay faster overall for balanced reaction windows
-    const decayRate = 0.972 + (this.rallyHeat || 0) * 0.008;
+    let decayRate = 0.972 + (this.rallyHeat || 0) * 0.008;
+    let dynamicMax = Math.min(21.5, 15.0 + Math.min(6.5, (this.rallyCount || 1) * 0.7));
+
+    if (this.puckFireBoostTimer > 0) {
+      dynamicMax = 25.0; // Allow supersonic blazing speeds up to 25.0 km/h
+      decayRate = 0.995; // Retain fire velocity across the arena
+    }
     
     if (this.puck.currentSpeed > this.baseSpeed) {
       const targetSpeed = Math.max(this.baseSpeed, this.puck.currentSpeed * decayRate);
@@ -2215,16 +2239,26 @@ class AvatarElementGame {
       this.puck.currentSpeed = this.baseSpeed;
     }
     
-    const dynamicMax = Math.min(21.5, 15.0 + Math.min(6.5, (this.rallyCount || 1) * 0.7));
     if (this.puck.currentSpeed > dynamicMax) {
       const scale = dynamicMax / this.puck.currentSpeed;
       this.puck.vx *= scale;
       this.puck.vy *= scale;
       this.puck.currentSpeed = dynamicMax;
     }
+
+    // Record blazing fiery comet tail when fire boost is active
+    if (!this.firePuckTrail) this.firePuckTrail = [];
+    if (this.puckFireBoostTimer > 0) {
+      this.firePuckTrail.unshift({ x: this.puck.x, y: this.puck.y });
+      if (this.firePuckTrail.length > 25) {
+        this.firePuckTrail.pop();
+      }
+    } else if (this.firePuckTrail.length > 0) {
+      this.firePuckTrail.pop();
+    }
     
     // Anti-tunneling continuous collision sub-stepping for supersonic speeds
-    const subSteps = this.puck.currentSpeed > 15.0 ? 2 : 1;
+    const subSteps = this.puck.currentSpeed > 18.0 ? 3 : (this.puck.currentSpeed > 13.0 ? 2 : 1);
     const stepVx = this.puck.vx / subSteps;
     const stepVy = this.puck.vy / subSteps;
 
@@ -2762,6 +2796,77 @@ class AvatarElementGame {
     ctx.restore();
   }
 
+  drawFlamePuckTrail(ctx) {
+    if (!this.firePuckTrail || this.firePuckTrail.length < 2) return;
+
+    ctx.save();
+    const trailLen = this.firePuckTrail.length;
+
+    // 1. Wide outer fiery magma/flame glow ribbon
+    for (let i = 0; i < trailLen - 1; i++) {
+      const p1 = this.firePuckTrail[i];
+      const p2 = this.firePuckTrail[i + 1];
+      const ratio = 1 - (i / trailLen);
+      const alpha = Math.min(1, ratio * 0.85);
+      const width = Math.max(2, (this.puck.radius * 2.2) * (ratio * 0.85 + 0.15));
+
+      ctx.beginPath();
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p2.y);
+      ctx.lineWidth = width;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = `rgba(255, 45, 0, ${alpha * 0.45})`;
+      ctx.stroke();
+    }
+
+    // 2. Mid bright orange blazing ribbon
+    for (let i = 0; i < trailLen - 1; i++) {
+      const p1 = this.firePuckTrail[i];
+      const p2 = this.firePuckTrail[i + 1];
+      const ratio = 1 - (i / trailLen);
+      const alpha = Math.min(1, ratio);
+      const width = Math.max(1.5, (this.puck.radius * 1.35) * (ratio * 0.85 + 0.15));
+
+      ctx.beginPath();
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p2.y);
+      ctx.lineWidth = width;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = `rgba(255, 140, 0, ${alpha * 0.75})`;
+      ctx.stroke();
+    }
+
+    // 3. Inner incandescent golden-white laser core
+    for (let i = 0; i < trailLen - 1; i++) {
+      const p1 = this.firePuckTrail[i];
+      const p2 = this.firePuckTrail[i + 1];
+      const ratio = 1 - (i / trailLen);
+      const alpha = Math.min(1, ratio * 1.15);
+      const width = Math.max(1, (this.puck.radius * 0.65) * ratio);
+
+      ctx.beginPath();
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p2.y);
+      ctx.lineWidth = width;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = `rgba(255, 245, 170, ${alpha * 0.95})`;
+      ctx.stroke();
+    }
+
+    // 4. Trailing dynamic flame embers along the comet trail
+    const t = Date.now() / 1000;
+    for (let i = 1; i < Math.min(14, trailLen); i += 2) {
+      const pt = this.firePuckTrail[i];
+      const flicker = Math.sin(t * 26 + i * 2.8) * 5;
+      const size = (4.2 * (1 - i / 14)) + Math.random() * 1.5;
+      ctx.fillStyle = i % 2 === 0 ? '#ffee44' : '#ff4400';
+      ctx.beginPath();
+      ctx.arc(pt.x + flicker * 0.6, pt.y + flicker, Math.max(0.8, size), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
   drawFlyingBoulders() {
     const ctx = this.ctx;
     this.boulders.forEach(b => {
@@ -3208,6 +3313,7 @@ class AvatarElementGame {
     this.p2.draw(ctx);
 
     // Puck
+    this.drawFlamePuckTrail(ctx);
     this.puck.draw(ctx);
 
     // Whipped Puck Water Aura Visual
