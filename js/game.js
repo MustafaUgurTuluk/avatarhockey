@@ -225,8 +225,8 @@ class HockeyHubManager {
       this.game.p2CharKey = config.p2Char || 'zuko';
       this.game.selectedMap = config.map || 'ice';
 
-      const charMap = { katara: 'Katara (Su 🌊)', zuko: 'Zuko (Ateş 🔥)', aang: 'Aang (Hava 🌪️)', toph: 'Toph (Toprak 🪨)' };
-      const mapMap = { ice: 'Buz ❄️', fire: 'Ateş 🌋', air: 'Hava 💨', earth: 'Toprak 🪨' };
+      const charMap = { katara: 'Katara (Su 🌊)', zuko: 'Zuko (Ateş 🔥)', aang: 'Aang (Hava 🌪️)', toph: 'Toph (Toprak 🪨)', azula: 'Azula (Yıldırım ⚡)' };
+      const mapMap = { ice: 'Buz ❄️', fire: 'Ateş 🌋', air: 'Hava 💨', earth: 'Toprak 🪨', storm: 'Fırtına ⚡' };
 
       const elP1 = document.getElementById('prevP1Char');
       const elP2 = document.getElementById('prevP2Char');

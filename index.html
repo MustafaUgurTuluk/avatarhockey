@@ -16,9 +16,13 @@
       <!-- Player 1 Score & Ability Meter (Far Left) -->
       <div class="player-score-card p1">
         <div class="player-score-main">
-          <div class="player-avatar">P1</div>
+          <div class="player-avatar" id="p1Avatar">
+            <img src="assets/characters/katara.jpg" alt="Katara" id="p1AvatarImg" class="hud-avatar-img">
+            <div class="hud-avatar-glow"></div>
+          </div>
           <div class="player-info">
             <span class="player-name">OYUNCU 1</span>
+            <span class="player-char-name" id="p1CharName">KATARA</span>
           </div>
           <span class="score-display" id="scoreP1">0</span>
         </div>
@@ -43,9 +47,13 @@
       <!-- Player 2 Score & Ability Meter (Far Right) -->
       <div class="player-score-card p2">
         <div class="player-score-main">
-          <div class="player-avatar">P2</div>
+          <div class="player-avatar" id="p2Avatar">
+            <img src="assets/characters/zuko.jpg" alt="Zuko" id="p2AvatarImg" class="hud-avatar-img">
+            <div class="hud-avatar-glow"></div>
+          </div>
           <div class="player-info">
             <span class="player-name">OYUNCU 2</span>
+            <span class="player-char-name" id="p2CharName">ZUKO</span>
           </div>
           <span class="score-display" id="scoreP2">0</span>
         </div>
@@ -60,6 +68,21 @@
     <main class="canvas-wrapper">
       <canvas id="gameCanvas" width="960" height="540"></canvas>
 
+      <!-- Anime Bending Super Move Cut-In Overlay -->
+      <div class="bending-cutin-overlay" id="bendingCutin">
+        <div class="cutin-bar" id="cutinBar">
+          <div class="cutin-speedlines"></div>
+          <div class="cutin-portrait-wrap">
+            <img src="assets/characters/katara.jpg" alt="Champion" id="cutinPortrait" class="cutin-portrait-img">
+            <div class="cutin-glow-ring"></div>
+          </div>
+          <div class="cutin-text-wrap">
+            <div class="cutin-character-name" id="cutinCharName">KATARA</div>
+            <div class="cutin-ability-name" id="cutinAbilityName">BUZ HUNİSİ ❄️</div>
+          </div>
+        </div>
+      </div>
+
       <!-- Avatar Champions & Element Hockey Start Modal -->
       <div class="modal-overlay active" id="avatarStartModal">
         <div class="modal-card wide">
@@ -71,24 +94,49 @@
             <span class="player-name" style="color: var(--p1-color)">Oyuncu 1 Bükücü Seçimi:</span>
             <div class="char-select-grid">
               <div class="char-card p1-char-card active" data-char="katara">
-                <span class="char-avatar-icon">🌊</span>
+                <div class="char-portrait-frame">
+                  <img src="assets/characters/katara.jpg" alt="Katara" class="char-portrait-img">
+                  <div class="char-element-ring ring-katara"></div>
+                  <span class="char-element-badge">🌊</span>
+                </div>
                 <span class="char-name">Katara</span>
-                <span class="char-elem-tag">❄️ Aktif: Buz Şeridi Atar</span>
+                <span class="char-elem-tag">❄️ Buz Şeridi</span>
               </div>
               <div class="char-card p1-char-card" data-char="zuko">
-                <span class="char-avatar-icon">🔥</span>
+                <div class="char-portrait-frame">
+                  <img src="assets/characters/zuko.jpg" alt="Zuko" class="char-portrait-img">
+                  <div class="char-element-ring ring-zuko"></div>
+                  <span class="char-element-badge">🔥</span>
+                </div>
                 <span class="char-name">Zuko</span>
-                <span class="char-elem-tag">🔥 Aktif: Ateş Topu</span>
+                <span class="char-elem-tag">🔥 Ateş Topu</span>
               </div>
               <div class="char-card p1-char-card" data-char="aang">
-                <span class="char-avatar-icon">🌪️</span>
+                <div class="char-portrait-frame">
+                  <img src="assets/characters/aang.jpg" alt="Aang" class="char-portrait-img">
+                  <div class="char-element-ring ring-aang"></div>
+                  <span class="char-element-badge">🌪️</span>
+                </div>
                 <span class="char-name">Aang</span>
-                <span class="char-elem-tag">💨 Aktif: Rüzgar ile Yakala</span>
+                <span class="char-elem-tag">💨 Rüzgar Yakala</span>
               </div>
               <div class="char-card p1-char-card" data-char="toph">
-                <span class="char-avatar-icon">🪨</span>
+                <div class="char-portrait-frame">
+                  <img src="assets/characters/toph.jpg" alt="Toph" class="char-portrait-img">
+                  <div class="char-element-ring ring-toph"></div>
+                  <span class="char-element-badge">🪨</span>
+                </div>
                 <span class="char-name">Toph</span>
-                <span class="char-elem-tag">🪨 Aktif: Kaya Duvarı Ör</span>
+                <span class="char-elem-tag">🪨 Kaya Duvarı</span>
+              </div>
+              <div class="char-card p1-char-card" data-char="azula">
+                <div class="char-portrait-frame">
+                  <img src="assets/characters/azula.jpg" alt="Azula" class="char-portrait-img">
+                  <div class="char-element-ring ring-azula"></div>
+                  <span class="char-element-badge">⚡</span>
+                </div>
+                <span class="char-name">Azula</span>
+                <span class="char-elem-tag">⚡ Yıldırım Oku</span>
               </div>
             </div>
           </div>
@@ -98,24 +146,49 @@
             <span class="player-name" style="color: var(--p2-color)">Oyuncu 2 Bükücü Seçimi:</span>
             <div class="char-select-grid">
               <div class="char-card p2-char-card" data-char="katara">
-                <span class="char-avatar-icon">🌊</span>
+                <div class="char-portrait-frame">
+                  <img src="assets/characters/katara.jpg" alt="Katara" class="char-portrait-img">
+                  <div class="char-element-ring ring-katara"></div>
+                  <span class="char-element-badge">🌊</span>
+                </div>
                 <span class="char-name">Katara</span>
-                <span class="char-elem-tag">❄️ Aktif: Buz Şeridi Atar</span>
+                <span class="char-elem-tag">❄️ Buz Şeridi</span>
               </div>
               <div class="char-card p2-char-card active" data-char="zuko">
-                <span class="char-avatar-icon">🔥</span>
+                <div class="char-portrait-frame">
+                  <img src="assets/characters/zuko.jpg" alt="Zuko" class="char-portrait-img">
+                  <div class="char-element-ring ring-zuko"></div>
+                  <span class="char-element-badge">🔥</span>
+                </div>
                 <span class="char-name">Zuko</span>
-                <span class="char-elem-tag">🔥 Aktif: Ateş Topu</span>
+                <span class="char-elem-tag">🔥 Ateş Topu</span>
               </div>
               <div class="char-card p2-char-card" data-char="aang">
-                <span class="char-avatar-icon">🌪️</span>
+                <div class="char-portrait-frame">
+                  <img src="assets/characters/aang.jpg" alt="Aang" class="char-portrait-img">
+                  <div class="char-element-ring ring-aang"></div>
+                  <span class="char-element-badge">🌪️</span>
+                </div>
                 <span class="char-name">Aang</span>
-                <span class="char-elem-tag">💨 Aktif: Rüzgar ile Yakala</span>
+                <span class="char-elem-tag">💨 Rüzgar Yakala</span>
               </div>
               <div class="char-card p2-char-card" data-char="toph">
-                <span class="char-avatar-icon">🪨</span>
+                <div class="char-portrait-frame">
+                  <img src="assets/characters/toph.jpg" alt="Toph" class="char-portrait-img">
+                  <div class="char-element-ring ring-toph"></div>
+                  <span class="char-element-badge">🪨</span>
+                </div>
                 <span class="char-name">Toph</span>
-                <span class="char-elem-tag">🪨 Aktif: Kaya Duvarı Ör</span>
+                <span class="char-elem-tag">🪨 Kaya Duvarı</span>
+              </div>
+              <div class="char-card p2-char-card" data-char="azula">
+                <div class="char-portrait-frame">
+                  <img src="assets/characters/azula.jpg" alt="Azula" class="char-portrait-img">
+                  <div class="char-element-ring ring-azula"></div>
+                  <span class="char-element-badge">⚡</span>
+                </div>
+                <span class="char-name">Azula</span>
+                <span class="char-elem-tag">⚡ Yıldırım Oku</span>
               </div>
             </div>
           </div>
@@ -143,6 +216,11 @@
                 <span class="char-avatar-icon">🪨</span>
                 <span class="char-name">Toprak</span>
                 <span class="char-elem-tag">Orta alan yavaşlatır (Toph hariç)</span>
+              </div>
+              <div class="char-card map-card" data-map="storm">
+                <span class="char-avatar-icon">⚡</span>
+                <span class="char-name">Fırtına</span>
+                <span class="char-elem-tag">Yıldırım & elektrikli bantlar (Azula hariç)</span>
               </div>
             </div>
           </div>
@@ -276,9 +354,16 @@
 
       <!-- Win Modal Overlay -->
       <div class="modal-overlay" id="winModal">
-        <div class="modal-card">
+        <div class="modal-card win-modal-card">
+          <div class="win-champion-showcase">
+            <div class="win-rays-bg"></div>
+            <div class="win-portrait-frame">
+              <img src="assets/characters/katara.jpg" id="winChampionImg" alt="Champion" class="win-champion-img">
+              <div class="win-element-halo" id="winElementHalo"></div>
+            </div>
+          </div>
           <div class="winner-banner winner-p1" id="winnerText">OYUNCU 1 KAZANDI!</div>
-          <p class="modal-subtitle">Tebrikler! Maçı kazanmak için 7 gole ilk ulaşan sen oldun.</p>
+          <p class="modal-subtitle" id="winSubtitle">Tebrikler! Bükücü gücünle maçı kazandın!</p>
           <div class="control-btn-group">
             <button class="btn btn-primary" id="btnRestart">🏆 Yeniden Oyna</button>
             <button class="btn btnReturnHub">🏠 Menü</button>

@@ -79,6 +79,18 @@ class AvatarElementGame {
         ability2Name: 'Kaya Fırlatma',
         ability2Desc: 'Menzilli kaya fırlatır; rakibe değerse geri iter, menzili bitince zeminde engel olarak kalır.',
         ability2Cooldown: 330
+      },
+      azula: {
+        id: 'azula', name: 'Azula', element: 'Yıldırım',
+        icon: '⚡', color: '#a855f7', glow: '#c084fc',
+        moveSpeed: 4.9, strikeForce: 10.2, paddleHeight: 96,
+        trailColor: '#d8b4fe',
+        abilityName: 'Yıldırım Oku',
+        abilityDesc: 'Topa saf yıldırım fırlatarak elektrik yükler; top zikzak yaparak süper hızla uçar.',
+        abilityCooldown: 330,
+        ability2Name: 'Statik Şok Dalgası',
+        ability2Desc: 'Önündeki alana şok dalgası yayar; topu savurur ve rakibi 1.5sn elektriksel titreşime sokar.',
+        ability2Cooldown: 390
       }
     };
 
@@ -125,6 +137,13 @@ class AvatarElementGame {
     this.p1EarthWallTimer = 0;
     this.p2EarthWallTimer = 0;
     this.EARTH_WALL_DURATION = 210; // ~3.5 seconds
+
+    // Azula: Lightning Bolts & Static Pulses
+    this.lightningBolts = []; // {x, y, vx, width, height, isP1, timer, zaps}
+    this.staticPulses = []; // {x, y, radius, maxRadius, isP1, timer}
+    this.p1ShockTimer = 0;
+    this.p2ShockTimer = 0;
+    this.puckLightningBoostTimer = 0;
 
     // Ball serving state
     this.servingPlayer = null;
@@ -183,11 +202,35 @@ class AvatarElementGame {
     this.earthRockH = 64;
     this.earthRockDuration = 0;
 
+    // Storm Map: Lightning Strikes & High-Voltage Electric Rail Hazards
+    this.stormLightningTimer = 360;
+    this.stormLightningActive = false;
+    this.stormLightningTelegraph = 0;
+    this.stormLightningX = 0;
+    this.stormLightningY = 0;
+    this.stormLightningRadius = 55;
+    this.stormMapCanvas = null;
+
     // Key states
     this.keys = {};
     this.keyJustPressed = {};
 
-    // DOM
+    // Animation Timers & Strike Shockwave FX
+    this.animTime = 0;
+    this.p1StrikeAnim = 0;
+    this.p2StrikeAnim = 0;
+
+    // Preload & Cache Character Portraits
+    this.characterImages = {};
+    if (typeof Image !== 'undefined') {
+      ['katara', 'zuko', 'aang', 'toph', 'azula'].forEach(char => {
+        const img = new Image();
+        img.src = `assets/characters/${char}.jpg`;
+        this.characterImages[char] = img;
+      });
+    }
+
+    // DOM Elements
     this.elScoreP1 = document.getElementById('scoreP1');
     this.elScoreP2 = document.getElementById('scoreP2');
     this.elHitSpeed = document.getElementById('hitSpeedMeter');
@@ -197,6 +240,20 @@ class AvatarElementGame {
     this.winnerText = document.getElementById('winnerText');
     this.elP1Energy = document.getElementById('p1EnergyBar');
     this.elP2Energy = document.getElementById('p2EnergyBar');
+
+    // HUD Avatars and Cut-In DOM
+    this.p1AvatarImg = document.getElementById('p1AvatarImg');
+    this.p2AvatarImg = document.getElementById('p2AvatarImg');
+    this.p1CharName = document.getElementById('p1CharName');
+    this.p2CharName = document.getElementById('p2CharName');
+    this.bendingCutin = document.getElementById('bendingCutin');
+    this.cutinBar = document.getElementById('cutinBar');
+    this.cutinPortrait = document.getElementById('cutinPortrait');
+    this.cutinCharName = document.getElementById('cutinCharName');
+    this.cutinAbilityName = document.getElementById('cutinAbilityName');
+    this.winChampionImg = document.getElementById('winChampionImg');
+    this.winElementHalo = document.getElementById('winElementHalo');
+    this.cutinTimeout = null;
 
     this.setupInputs();
     this.setupEvents();
@@ -240,6 +297,7 @@ class AvatarElementGame {
         document.querySelectorAll('.p1-char-card').forEach(c => c.classList.remove('active'));
         card.classList.add('active');
         this.p1CharKey = card.dataset.char;
+        this.updateHudAvatars();
         this.notifyRoomConfigChange();
       });
     });
@@ -248,6 +306,7 @@ class AvatarElementGame {
         document.querySelectorAll('.p2-char-card').forEach(c => c.classList.remove('active'));
         card.classList.add('active');
         this.p2CharKey = card.dataset.char;
+        this.updateHudAvatars();
         this.notifyRoomConfigChange();
       });
     });
@@ -271,6 +330,57 @@ class AvatarElementGame {
       this.isAiMode = true;
       this.startGame();
     });
+
+    this.updateHudAvatars();
+  }
+
+  updateHudAvatars() {
+    const p1Char = this.champions[this.p1CharKey] || this.champions.katara;
+    const p2Char = this.champions[this.p2CharKey] || this.champions.zuko;
+
+    if (this.p1AvatarImg) {
+      this.p1AvatarImg.src = `assets/characters/${this.p1CharKey}.jpg`;
+      this.p1AvatarImg.alt = p1Char.name;
+    }
+    if (this.p1CharName) {
+      this.p1CharName.innerText = p1Char.name.toUpperCase();
+    }
+    if (this.p2AvatarImg) {
+      this.p2AvatarImg.src = `assets/characters/${this.p2CharKey}.jpg`;
+      this.p2AvatarImg.alt = p2Char.name;
+    }
+    if (this.p2CharName) {
+      this.p2CharName.innerText = p2Char.name.toUpperCase();
+    }
+  }
+
+  showBendingCutIn(charKey, abilityName, isP1) {
+    if (!this.bendingCutin || !this.cutinPortrait) return;
+    const char = this.champions[charKey];
+    if (!char) return;
+
+    this.cutinPortrait.src = `assets/characters/${charKey}.jpg`;
+    if (this.cutinCharName) {
+      this.cutinCharName.innerText = char.name.toUpperCase();
+      this.cutinCharName.style.color = char.color;
+    }
+    if (this.cutinAbilityName) {
+      this.cutinAbilityName.innerText = `${abilityName} ${char.icon}`;
+    }
+    if (this.cutinBar) {
+      this.cutinBar.style.borderTopColor = char.color;
+      this.cutinBar.style.borderBottomColor = char.color;
+      this.cutinBar.style.boxShadow = `0 0 35px ${char.glow}`;
+    }
+
+    this.bendingCutin.classList.remove('active');
+    void this.bendingCutin.offsetWidth;
+    this.bendingCutin.classList.add('active');
+
+    if (this.cutinTimeout) clearTimeout(this.cutinTimeout);
+    this.cutinTimeout = setTimeout(() => {
+      this.bendingCutin?.classList.remove('active');
+    }, 850);
   }
 
   startOnlineGame(isHost) {
@@ -296,6 +406,7 @@ class AvatarElementGame {
     this.fireMapCanvas = null;
     this.airMapCanvas = null;
     this.earthMapCanvas = null;
+    this.stormMapCanvas = null;
     this.scoreP1 = 0;
     this.scoreP2 = 0;
     this.winner = null;
@@ -305,8 +416,13 @@ class AvatarElementGame {
     this.p1AbilityCooldown = 0;
     this.p2AbilityCooldown = 0;
     this.iceBeams = [];
+    this.lightningBolts = [];
+    this.staticPulses = [];
     this.p1FreezeTimer = 0;
     this.p2FreezeTimer = 0;
+    this.p1ShockTimer = 0;
+    this.p2ShockTimer = 0;
+    this.puckLightningBoostTimer = 0;
     this.p1EarthWallTimer = 0;
     this.p2EarthWallTimer = 0;
     this.fireFlameActive = false;
@@ -318,6 +434,9 @@ class AvatarElementGame {
     this.airTornadoTimer = 280;
     this.earthRockActive = false;
     this.earthRockTimer = 250;
+    this.stormLightningActive = false;
+    this.stormLightningTelegraph = 0;
+    this.stormLightningTimer = 360;
 
     const p1Char = this.champions[this.p1CharKey] || this.champions['katara'];
     const p2Char = this.champions[this.p2CharKey] || this.champions['zuko'];
@@ -327,6 +446,7 @@ class AvatarElementGame {
     this.p2.height = p2Char.paddleHeight;
 
     this.updateScoreDisplay();
+    this.updateHudAvatars();
     this.startModal?.classList.remove('active');
     document.getElementById('onlineStartModal')?.classList.remove('active');
     this.pauseModal?.classList.remove('active');
@@ -413,8 +533,15 @@ class AvatarElementGame {
 
     if (cooldown > 0) return;
 
-    if (isP1) this.p1AbilityCooldown = char.abilityCooldown;
-    else this.p2AbilityCooldown = char.abilityCooldown;
+    if (isP1) {
+      this.p1AbilityCooldown = char.abilityCooldown;
+      this.p1StrikeAnim = 1.0;
+    } else {
+      this.p2AbilityCooldown = char.abilityCooldown;
+      this.p2StrikeAnim = 1.0;
+    }
+
+    this.showBendingCutIn(charKey, char.abilityName, isP1);
 
     if (charKey === 'katara') {
       const beamX = isP1 ? this.p1.x + 25 : this.p2.x - 25;
@@ -470,6 +597,25 @@ class AvatarElementGame {
       soundFx.playHit(true, 1.4);
       this.updateHitSpeedMeter(0, '🪨 TOPH: KAYA DUVARI ÖRÜLDÜ!');
     }
+    else if (charKey === 'azula') {
+      // 1st Ability: Yıldırım Oku (Lightning Bolt)
+      const player = isP1 ? this.p1 : this.p2;
+      const startX = isP1 ? player.x + 30 : player.x - 30;
+      const vx = isP1 ? 16.5 : -16.5;
+      this.lightningBolts.push({
+        x: startX,
+        y: player.y,
+        vx: vx,
+        width: 36,
+        height: 16,
+        isP1: isP1,
+        distTraveled: 0,
+        maxDist: this.width
+      });
+      soundFx.playLightning();
+      effects.addHitSparks(startX, player.y, isP1 ? 1 : -1, 0, '#c084fc', true);
+      this.updateHitSpeedMeter(0, '⚡ AZULA: YILDIRIM OKU FIRLATILDI!');
+    }
   }
 
   triggerAbility2(playerTag) {
@@ -479,6 +625,14 @@ class AvatarElementGame {
     const cooldown = isP1 ? this.p1AbilityCooldown : this.p2AbilityCooldown;
 
     if (cooldown > 0) return;
+
+    if (isP1) {
+      this.p1StrikeAnim = 1.0;
+    } else {
+      this.p2StrikeAnim = 1.0;
+    }
+
+    this.showBendingCutIn(charKey, char.ability2Name, isP1);
 
     const player = isP1 ? this.p1 : this.p2;
     const border = this.table.border;
@@ -567,6 +721,25 @@ class AvatarElementGame {
       effects.addHitSparks(startX, player.y, isP1 ? 1 : -1, 0, '#ffaa00', true);
       this.updateHitSpeedMeter(0, '🪨 TOPH: MENZİLLİ KAYA FIRLATILDI!');
     }
+    else if (charKey === 'azula') {
+      if (isP1) this.p1AbilityCooldown = char.ability2Cooldown;
+      else this.p2AbilityCooldown = char.ability2Cooldown;
+
+      const pulseX = isP1 ? player.x + 35 : player.x - 35;
+      this.staticPulses.push({
+        x: pulseX,
+        y: player.y,
+        radius: 20,
+        maxRadius: 220,
+        isP1: isP1,
+        timer: 26
+      });
+      soundFx.playShock();
+      soundFx.playLightning();
+      effects.addHitSparks(pulseX, player.y, isP1 ? 1 : -1, 0, '#00f5ff', true);
+      effects.addGoalBurst(pulseX, player.y, '#a855f7');
+      this.updateHitSpeedMeter(0, '⚡ AZULA: STATİK ŞOK DALGASI!');
+    }
   }
 
   // ============ MOVEMENT ============
@@ -597,10 +770,32 @@ class AvatarElementGame {
         }
       }
 
+      // Static Shock Jitter Disruption (when hit by Azula's shockwave or lightning)
+      const shockTimer = isP1 ? this.p1ShockTimer : this.p2ShockTimer;
+      if (shockTimer > 0 && freezeTimer <= 0) {
+        dx += (Math.random() - 0.5) * 3.2;
+        dy += (Math.random() - 0.5) * 3.2;
+        if (Math.random() < 0.22) {
+          effects.addHitSparks(player.x, player.y, (Math.random() - 0.5), (Math.random() - 0.5), '#a855f7', false);
+        }
+      }
+
       // Air Map: Diagonal Wind (only when wind is active)
       if (this.selectedMap === 'air' && charKey !== 'aang' && this.windState === 'active') {
         dx += this.windDirX * 1.0;
         dy += this.windDirY * 1.0;
+      }
+
+      // Storm Map: High-Voltage Electrified Rails (Azula is grounded/immune)
+      if (this.selectedMap === 'storm' && charKey !== 'azula') {
+        const railRepelDist = border + player.height / 2 + 12;
+        if (player.y < railRepelDist) {
+          dy += 2.0; // Repelled downward from top rail
+          if (Math.random() < 0.2) effects.addHitSparks(player.x, player.y, 0, 1, '#a855f7', false);
+        } else if (player.y > this.height - railRepelDist) {
+          dy -= 2.0; // Repelled upward from bottom rail
+          if (Math.random() < 0.2) effects.addHitSparks(player.x, player.y, 0, -1, '#a855f7', false);
+        }
       }
 
       // Ice Map: Slippery (Clamped to max char.moveSpeed)
@@ -762,6 +957,7 @@ class AvatarElementGame {
     // P1 Serve (SPACE)
     if (this.keyJustPressed['Space']) {
       this.keyJustPressed['Space'] = false;
+      this.p1StrikeAnim = 1.0;
       if (this.servingPlayer === 'p1') {
         this.serveTheBall('p1');
       }
@@ -788,6 +984,7 @@ class AvatarElementGame {
     if (this.keyJustPressed['Enter'] || this.keyJustPressed['Numpad0']) {
       this.keyJustPressed['Enter'] = false;
       this.keyJustPressed['Numpad0'] = false;
+      this.p2StrikeAnim = 1.0;
       if (this.servingPlayer === 'p2') {
         this.serveTheBall('p2');
       }
@@ -843,6 +1040,11 @@ class AvatarElementGame {
     // AI uses ability
     if (this.p2AbilityCooldown <= 0 && Math.random() < 0.005) {
       this.triggerAbility('p2');
+    }
+
+    // AI uses ability 2
+    if (this.p2Ability2Cooldown <= 0 && Math.random() < 0.004) {
+      this.triggerAbility2('p2');
     }
   }
 
@@ -918,6 +1120,8 @@ class AvatarElementGame {
         this.puck.vy = speed * Math.sin(deflectAngle) + paddle.vy * 0.3;
 
         this.puck.lastHitBy = playerTag;
+        if (isP1) this.p1StrikeAnim = 1.0;
+        else this.p2StrikeAnim = 1.0;
         
         if (momentumBonus > 1) {
           soundFx.playHit(true, speed / 10);
@@ -1016,6 +1220,125 @@ class AvatarElementGame {
     if (this.p1FreezeTimer > 0) this.p1FreezeTimer--;
     if (this.p2FreezeTimer > 0) this.p2FreezeTimer--;
 
+    // Shock timers (Azula electrical static disruption)
+    if (this.p1ShockTimer > 0) this.p1ShockTimer--;
+    if (this.p2ShockTimer > 0) this.p2ShockTimer--;
+
+    // Puck Lightning Supercharge Boost Timer
+    if (this.puckLightningBoostTimer > 0) {
+      this.puckLightningBoostTimer--;
+      if (Math.random() < 0.4) {
+        effects.addHitSparks(this.puck.x, this.puck.y, (Math.random() - 0.5), (Math.random() - 0.5), '#00f5ff', false);
+      }
+    }
+
+    // Update Azula Lightning Bolts (1st Ability)
+    const border = this.table.border;
+    for (let i = this.lightningBolts.length - 1; i >= 0; i--) {
+      const bolt = this.lightningBolts[i];
+      bolt.x += bolt.vx;
+      bolt.distTraveled += Math.abs(bolt.vx);
+
+      if (Math.random() < 0.6) {
+        effects.addHitSparks(bolt.x, bolt.y, bolt.vx > 0 ? 1 : -1, (Math.random() - 0.5) * 0.5, '#00f5ff', false);
+      }
+
+      // Check collision with puck
+      const distToPuck = Math.hypot(this.puck.x - bolt.x, this.puck.y - bolt.y);
+      if (distToPuck < bolt.width / 2 + this.puck.radius) {
+        const dirX = bolt.isP1 ? 1 : -1;
+        const launchSpeed = 17.2;
+        const zapY = (Math.random() - 0.5) * 5.0;
+        this.puck.vx = dirX * launchSpeed;
+        this.puck.vy = zapY;
+        this.puck.lastHitBy = bolt.isP1 ? 'p1' : 'p2';
+        this.puckLightningBoostTimer = 140;
+        soundFx.playLightning();
+        effects.addHitSparks(this.puck.x, this.puck.y, dirX, zapY * 0.3, '#c084fc', true);
+        effects.addGoalBurst(this.puck.x, this.puck.y, '#00f5ff');
+        this.updateHitSpeedMeter(launchSpeed, '⚡ YILDIRIM OKU VURUŞU!');
+        this.lightningBolts.splice(i, 1);
+        continue;
+      }
+
+      // Check collision with opponent paddle (shock stun & knockback)
+      const opponent = bolt.isP1 ? this.p2 : this.p1;
+      const oMinX = opponent.x - opponent.width / 2;
+      const oMaxX = opponent.x + opponent.width / 2;
+      const oMinY = opponent.y - opponent.height / 2;
+      const oMaxY = opponent.y + opponent.height / 2;
+
+      if (bolt.x >= oMinX && bolt.x <= oMaxX && bolt.y >= oMinY && bolt.y <= oMaxY) {
+        if (bolt.isP1) this.p2ShockTimer = 90;
+        else this.p1ShockTimer = 90;
+
+        const knockback = bolt.isP1 ? 40 : -40;
+        opponent.x = Math.max(border + 35, Math.min(this.width - border - 35, opponent.x + knockback));
+
+        soundFx.playShock();
+        soundFx.playLightning();
+        effects.addHitSparks(opponent.x, opponent.y, bolt.isP1 ? 1 : -1, 0, '#a855f7', true);
+        this.updateHitSpeedMeter(0, `⚡ AZULA: RAKİP ELEKTRİKLENDİ!`);
+        this.lightningBolts.splice(i, 1);
+        continue;
+      }
+
+      if (bolt.distTraveled >= bolt.maxDist || bolt.x < 0 || bolt.x > this.width) {
+        this.lightningBolts.splice(i, 1);
+      }
+    }
+
+    // Update Azula Static Pulses (2nd Ability: EMP Shockwave)
+    for (let i = this.staticPulses.length - 1; i >= 0; i--) {
+      const pulse = this.staticPulses[i];
+      pulse.timer--;
+      pulse.radius += 7.5;
+
+      // Check puck collision with pulse wavefront / inside shockwave
+      const distPuck = Math.hypot(this.puck.x - pulse.x, this.puck.y - pulse.y);
+      if (!pulse.hasHitPuck && (Math.abs(distPuck - pulse.radius) < 28 || distPuck <= pulse.radius)) {
+        pulse.hasHitPuck = true;
+
+        // Fling puck directly in the opposite direction of where the character is standing
+        const player = pulse.isP1 ? this.p1 : this.p2;
+        const dx = this.puck.x - player.x;
+        const dy = this.puck.y - player.y;
+        const dist = Math.hypot(dx, dy);
+
+        // Normalized launch vector radiating outward from Azula
+        const normX = dist > 1 ? dx / dist : (pulse.isP1 ? 1 : -1);
+        const normY = dist > 1 ? dy / dist : 0;
+
+        const blastSpeed = 17.5;
+        this.puck.vx = normX * blastSpeed;
+        this.puck.vy = normY * blastSpeed;
+        this.puck.lastHitBy = pulse.isP1 ? 'p1' : 'p2';
+        this.puckLightningBoostTimer = 110;
+
+        soundFx.playLightning();
+        effects.addHitSparks(this.puck.x, this.puck.y, normX, normY, '#a855f7', true);
+        effects.addHitSparks(this.puck.x, this.puck.y, normX, normY, '#00f5ff', true);
+        this.updateHitSpeedMeter(blastSpeed, '⚡ STATİK İTİŞ (TERS YÖNE FIRLATILDI)!');
+      }
+
+      // Check opponent paddle contact with shockwave
+      const opponent = pulse.isP1 ? this.p2 : this.p1;
+      const distOpp = Math.hypot(opponent.x - pulse.x, opponent.y - pulse.y);
+      if (!pulse.hasHitOpponent && Math.abs(distOpp - pulse.radius) < 30) {
+        pulse.hasHitOpponent = true;
+        if (pulse.isP1) this.p2ShockTimer = 90;
+        else this.p1ShockTimer = 90;
+
+        soundFx.playShock();
+        effects.addHitSparks(opponent.x, opponent.y, pulse.isP1 ? 1 : -1, 0, '#c084fc', true);
+        this.updateHitSpeedMeter(0, '⚡ RAKİP STATİK ŞOKA YAKALANDI!');
+      }
+
+      if (pulse.timer <= 0 || pulse.radius >= pulse.maxRadius) {
+        this.staticPulses.splice(i, 1);
+      }
+    }
+
     // Update Katara Water Whips
     for (let i = this.waterWhips.length - 1; i >= 0; i--) {
       const whip = this.waterWhips[i];
@@ -1062,7 +1385,7 @@ class AvatarElementGame {
 
       if (this.flameWallBuilding) {
         this.flameWallStepTimer++;
-        if (this.flameWallStepTimer >= 6) { // Ignites a new step pair every 6 frames (~0.1s per step)!
+        if (this.flameWallStepTimer >= 14) { // Builds slightly slower: ignites a new step pair every 14 frames (~0.23s per step)!
           this.flameWallStepTimer = 0;
           if (this.flameWallStepCount < this.flameWallMaxSteps) {
             this.flameWallStepCount++;
@@ -1087,27 +1410,32 @@ class AvatarElementGame {
 
       this.flameWallH = this.flameWallStepCount * stepH * 2;
 
-      // Check puck collision with active Flame Wall blocks (Impassable Barrier)
+      // Check puck collision with active Flame Wall blocks (Impassable Barrier + Flame Speed Boost)
       const centerX = this.width / 2;
       const centerY = this.height / 2;
       const wallMinY = centerY - this.flameWallH / 2;
       const wallMaxY = centerY + this.flameWallH / 2;
 
       if (Math.abs(this.puck.x - centerX) < this.puck.radius + 12 && this.puck.y >= wallMinY - 10 && this.puck.y <= wallMaxY + 10) {
-        const curSpeed = Math.max(8.0, Math.hypot(this.puck.vx, this.puck.vy));
-        
+        // Boost puck speed just like passing over flames (fire map hazard)
+        this.puckFireBoostTimer = 120; // 2 seconds continuous flame boost!
+        const boostSpeed = 16.5;
+
         // Bounce puck back to whichever side it came from (cannot cross wall)
         if (this.puck.x < centerX) {
-          this.puck.vx = -Math.abs(this.puck.vx || curSpeed) * 1.1;
+          this.puck.vx = -boostSpeed;
           this.puck.x = centerX - this.puck.radius - 14;
         } else {
-          this.puck.vx = Math.abs(this.puck.vx || curSpeed) * 1.1;
+          this.puck.vx = boostSpeed;
           this.puck.x = centerX + this.puck.radius + 14;
         }
 
+        this.puck.lastHitBy = this.flameWallPlayer || (this.puck.x < centerX ? 'p2' : 'p1');
+        soundFx.playHit(true, 1.8);
         soundFx.playWallHit();
-        effects.addHitSparks(this.puck.x, this.puck.y, this.puck.vx > 0 ? 1 : -1, 0, '#ff4400', false);
-        this.updateHitSpeedMeter(Math.abs(this.puck.vx), '🔥 ALEV DUVARINDAN SEKTİ!');
+        effects.addHitSparks(this.puck.x, this.puck.y, this.puck.vx > 0 ? 1 : -1, 0, '#ff4400', true);
+        effects.addHitSparks(this.puck.x, this.puck.y, this.puck.vx > 0 ? 1 : -1, 0, '#ffcc00', true);
+        this.updateHitSpeedMeter(boostSpeed, '🔥 ALEV DUVARI BOOSTU (SÜPER HIZLA SEKTİ)!');
       }
     }
 
@@ -1268,16 +1596,18 @@ class AvatarElementGame {
       }
     }
 
+    // Flame Boost: Maintain super speed while timer active (from Fire Map Hazard or Zuko Flame Wall)
+    if (this.puckFireBoostTimer > 0) {
+      this.puckFireBoostTimer--;
+      const currentSpeed = Math.hypot(this.puck.vx, this.puck.vy);
+      if (currentSpeed > 0) {
+        this.puck.vx = (this.puck.vx / currentSpeed) * 16.0;
+        this.puck.vy = (this.puck.vy / currentSpeed) * 16.0;
+      }
+    }
+
     // Fire Map Hazard: Flame Patch & Puck Speed Boost
     if (this.selectedMap === 'fire') {
-      if (this.puckFireBoostTimer > 0) {
-        this.puckFireBoostTimer--;
-        const currentSpeed = Math.hypot(this.puck.vx, this.puck.vy);
-        if (currentSpeed > 0) {
-          this.puck.vx = (this.puck.vx / currentSpeed) * 16.0;
-          this.puck.vy = (this.puck.vy / currentSpeed) * 16.0;
-        }
-      }
 
       if (this.fireFlameActive) {
         this.fireFlameDuration--;
@@ -1379,6 +1709,69 @@ class AvatarElementGame {
       }
     }
 
+    // Storm Map Hazard: Lightning Strike & Plasma Orb
+    if (this.selectedMap === 'storm') {
+      if (this.stormLightningActive > 0) {
+        this.stormLightningActive--;
+
+        // Check if puck is in strike zone
+        const distPuck = Math.hypot(this.puck.x - this.stormLightningX, this.puck.y - this.stormLightningY);
+        if (distPuck < this.stormLightningRadius + this.puck.radius) {
+          const launchAng = (Math.random() - 0.5) * Math.PI * 0.8 + (this.puck.x < this.width / 2 ? 0 : Math.PI);
+          const launchSpd = 18.0;
+          this.puck.vx = launchSpd * Math.cos(launchAng);
+          this.puck.vy = launchSpd * Math.sin(launchAng);
+          this.puckLightningBoostTimer = 160;
+          soundFx.playLightning();
+          effects.addGoalBurst(this.puck.x, this.puck.y, '#00f5ff');
+          effects.addGoalBurst(this.puck.x, this.puck.y, '#c084fc');
+          this.updateHitSpeedMeter(launchSpd, '⚡ YILDIRIM ÇARPMASI & PLAZMA TOPU!');
+        }
+
+        // Check paddles in strike zone (Azula absorbs/grounds, others get shocked!)
+        [
+          { p: this.p1, charKey: this.p1CharKey, isP1: true },
+          { p: this.p2, charKey: this.p2CharKey, isP1: false }
+        ].forEach(({ p, charKey, isP1 }) => {
+          const distPad = Math.hypot(p.x - this.stormLightningX, p.y - this.stormLightningY);
+          if (distPad < this.stormLightningRadius + p.width / 2) {
+            if (charKey === 'azula') {
+              if (isP1) this.p1AbilityCooldown = 0;
+              else this.p2AbilityCooldown = 0;
+              if (Math.random() < 0.2) effects.addHitSparks(p.x, p.y, 0, 0, '#00f5ff', true);
+            } else {
+              if (isP1) this.p1ShockTimer = 90;
+              else this.p2ShockTimer = 90;
+              const pushX = p.x < this.stormLightningX ? -35 : 35;
+              p.x = Math.max(border + 35, Math.min(this.width - border - 35, p.x + pushX));
+              effects.addHitSparks(p.x, p.y, pushX > 0 ? 1 : -1, 0, '#a855f7', true);
+            }
+          }
+        });
+      } else if (this.stormLightningTelegraph > 0) {
+        this.stormLightningTelegraph--;
+        if (this.stormLightningTelegraph <= 0) {
+          // Strike happens now!
+          this.stormLightningActive = 18;
+          soundFx.playLightning();
+          soundFx.playShock();
+          effects.addGoalBurst(this.stormLightningX, this.stormLightningY, '#ffffff');
+          effects.addGoalBurst(this.stormLightningX, this.stormLightningY, '#a855f7');
+        }
+      } else {
+        if (!this.stormLightningTimer) this.stormLightningTimer = 360;
+        this.stormLightningTimer--;
+        if (this.stormLightningTimer <= 0) {
+          const border = this.table.border;
+          this.stormLightningX = border + 130 + Math.random() * (this.width - border * 2 - 260);
+          this.stormLightningY = border + 60 + Math.random() * (this.height - border * 2 - 120);
+          this.stormLightningRadius = 55;
+          this.stormLightningTelegraph = 70; // ~1.15 seconds warning circle
+          this.stormLightningTimer = 440 + Math.random() * 220;
+        }
+      }
+    }
+
     // Update ice funnel timers
     if (this.p1IceFunnelTimer > 0) {
       this.p1IceFunnelTimer--;
@@ -1390,7 +1783,6 @@ class AvatarElementGame {
     }
 
     // Update ice beams (Katara 1st ability: Buz Hunisi Fırlatma)
-    const border = this.table.border;
     for (let i = this.iceBeams.length - 1; i >= 0; i--) {
       const beam = this.iceBeams[i];
       beam.x += beam.vx;
@@ -1486,6 +1878,10 @@ class AvatarElementGame {
   // ============ PHYSICS ============
 
   updatePhysics() {
+    this.animTime = (this.animTime || 0) + 0.04;
+    if (this.p1StrikeAnim > 0) this.p1StrikeAnim = Math.max(0, this.p1StrikeAnim - 0.05);
+    if (this.p2StrikeAnim > 0) this.p2StrikeAnim = Math.max(0, this.p2StrikeAnim - 0.05);
+
     this.updateCooldowns();
     this.updateAbilities();
     this.handlePlayerMovement();
@@ -1541,16 +1937,38 @@ class AvatarElementGame {
     const border = this.table.border;
     const r = this.puck.radius;
 
-    // Wall bounces (perfect, no energy loss)
+    // Wall bounces (perfect, no energy loss, electric boost on storm map)
     if (this.puck.y - r < border) {
       this.puck.y = border + r;
       this.puck.vy = -this.puck.vy;
-      soundFx.playWallHit();
+      if (this.selectedMap === 'storm') {
+        const curSpd = Math.hypot(this.puck.vx, this.puck.vy) || 1;
+        const boostSpd = Math.min(this.puck.maxSpeed, Math.max(8.5, curSpd * 1.18));
+        this.puck.vx = (this.puck.vx / curSpd) * boostSpd;
+        this.puck.vy = (this.puck.vy / curSpd) * boostSpd;
+        this.puckLightningBoostTimer = 90;
+        soundFx.playShock();
+        effects.addHitSparks(this.puck.x, this.puck.y, 0, 1, '#c084fc', true);
+        this.updateHitSpeedMeter(boostSpd, '⚡ ELEKTRİKLİ BANTTAN SEKTİ (+%18 HIZ)!');
+      } else {
+        soundFx.playWallHit();
+      }
     }
     if (this.puck.y + r > this.height - border) {
       this.puck.y = this.height - border - r;
       this.puck.vy = -this.puck.vy;
-      soundFx.playWallHit();
+      if (this.selectedMap === 'storm') {
+        const curSpd = Math.hypot(this.puck.vx, this.puck.vy) || 1;
+        const boostSpd = Math.min(this.puck.maxSpeed, Math.max(8.5, curSpd * 1.18));
+        this.puck.vx = (this.puck.vx / curSpd) * boostSpd;
+        this.puck.vy = (this.puck.vy / curSpd) * boostSpd;
+        this.puckLightningBoostTimer = 90;
+        soundFx.playShock();
+        effects.addHitSparks(this.puck.x, this.puck.y, 0, -1, '#c084fc', true);
+        this.updateHitSpeedMeter(boostSpd, '⚡ ELEKTRİKLİ BANTTAN SEKTİ (+%18 HIZ)!');
+      } else {
+        soundFx.playWallHit();
+      }
     }
 
     // Left wall / goal (Requires puck to travel deep into recessed 3D goal pocket)
@@ -1615,6 +2033,15 @@ class AvatarElementGame {
     soundFx.playGoal();
     this.updateScoreDisplay();
 
+    // Goal celebration animation on scoring player's HUD avatar
+    const scoringAvatar = scoringPlayer === 1 ? document.getElementById('p1Avatar') : document.getElementById('p2Avatar');
+    if (scoringAvatar) {
+      scoringAvatar.classList.remove('avatar-score-pop');
+      void scoringAvatar.offsetWidth;
+      scoringAvatar.classList.add('avatar-score-pop');
+      setTimeout(() => scoringAvatar.classList.remove('avatar-score-pop'), 650);
+    }
+
     if (this.scoreP1 >= this.targetScore || this.scoreP2 >= this.targetScore) {
       this.handleWin(this.scoreP1 >= this.targetScore ? 1 : 2);
     } else {
@@ -1632,6 +2059,15 @@ class AvatarElementGame {
 
     const charKey = winnerPlayer === 1 ? this.p1CharKey : this.p2CharKey;
     const charConfig = this.champions[charKey];
+
+    if (this.winChampionImg) {
+      this.winChampionImg.src = `assets/characters/${charKey}.jpg`;
+      this.winChampionImg.style.borderColor = charConfig.color;
+      this.winChampionImg.style.boxShadow = `0 0 35px ${charConfig.glow}`;
+    }
+    if (this.winElementHalo) {
+      this.winElementHalo.style.borderColor = charConfig.color;
+    }
 
     if (this.winnerText) {
       this.winnerText.innerText = winnerPlayer === 1 
@@ -1651,53 +2087,174 @@ class AvatarElementGame {
 
   drawCharacterBehindPaddle(paddle, charKey, isP1) {
     const char = this.champions[charKey];
+    if (!char) return;
     const ctx = this.ctx;
-    const offsetX = isP1 ? -26 : 26;
-    const cx = paddle.x + offsetX;
-    const cy = paddle.y;
+    const offsetX = isP1 ? -28 : 28;
+    
+    // Dynamic floating / breathing motion
+    const floatOffset = Math.sin((this.animTime || 0) * 3.2 + (isP1 ? 0 : Math.PI)) * 2.8;
+    let cx = paddle.x + offsetX;
+    let cy = paddle.y + floatOffset;
 
-    ctx.save();
-    ctx.shadowBlur = 20;
-    ctx.shadowColor = char.glow;
-
-    // Frozen effect
     const isFrozen = isP1 ? this.p1FreezeTimer > 0 : this.p2FreezeTimer > 0;
-    if (isFrozen) {
-      ctx.shadowColor = '#00ccff';
+    const isShocked = isP1 ? this.p1ShockTimer > 0 : this.p2ShockTimer > 0;
+
+    // High-voltage shock jitter displacement
+    if (isShocked) {
+      cx += (Math.random() - 0.5) * 3.5;
+      cy += (Math.random() - 0.5) * 3.5;
     }
 
-    const bodyR = 20;
-    ctx.fillStyle = isFrozen ? 'rgba(0, 150, 255, 0.4)' : char.color + '33';
-    ctx.strokeStyle = isFrozen ? '#00ccff' : char.color;
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.arc(cx, cy, bodyR, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
+    ctx.save();
+    const tokenR = 24;
 
-    const headR = 10;
-    const headY = cy - bodyR - headR + 4;
-    ctx.fillStyle = '#1a1d2e';
-    ctx.beginPath();
-    ctx.arc(cx, headY, headR, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
+    // Outer glow aura
+    ctx.shadowBlur = 18;
+    ctx.shadowColor = isFrozen ? '#00ccff' : (isShocked ? '#00f5ff' : char.glow);
 
-    // Frozen ice overlay
-    if (isFrozen) {
-      ctx.fillStyle = 'rgba(100, 200, 255, 0.3)';
-      ctx.beginPath();
-      ctx.arc(cx, cy, bodyR + 5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.font = '14px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('❄️', cx, cy + 2);
+    // Render character portrait inside circular clip
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, tokenR, 0, Math.PI * 2);
+    ctx.clip();
+    const img = this.characterImages ? this.characterImages[charKey] : null;
+    if (img && img.complete && img.naturalWidth > 0) {
+      ctx.drawImage(img, cx - tokenR, cy - tokenR, tokenR * 2, tokenR * 2);
     } else {
-      ctx.shadowBlur = 0;
+      ctx.fillStyle = char.color + '44';
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
       ctx.font = '18px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(char.icon, cx, cy + 2);
+      ctx.fillText(char.icon, cx, cy);
+    }
+    ctx.restore();
+
+    // Token Border Ring
+    ctx.strokeStyle = isFrozen ? '#00e5ff' : (isShocked ? '#00f5ff' : char.color);
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(cx, cy, tokenR, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Elemental Orbiting Particles (Water, Fire, Air, Earth, Lightning)
+    const t = this.animTime || 0;
+    if (!isFrozen) {
+      if (charKey === 'katara') {
+        // 4 glowing water beads orbiting with radial pulsation
+        ctx.fillStyle = '#00e5ff';
+        ctx.shadowColor = '#00ccff';
+        ctx.shadowBlur = 10;
+        for (let i = 0; i < 4; i++) {
+          const ang = t * 2.8 + i * (Math.PI / 2);
+          const r = tokenR + 6 + Math.sin(t * 4.5 + i * 1.5) * 2;
+          const px = cx + Math.cos(ang) * r;
+          const py = cy + Math.sin(ang) * r;
+          ctx.beginPath();
+          ctx.arc(px, py, 2.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else if (charKey === 'zuko') {
+        // Flickering flame embers rising and dancing around rim
+        ctx.shadowBlur = 12;
+        for (let i = 0; i < 4; i++) {
+          const ang = -Math.PI / 2 + Math.sin(t * 3.5 + i * 1.6) * 1.1;
+          const r = tokenR + 5 + Math.sin(t * 5 + i * 2) * 3;
+          const px = cx + Math.cos(ang) * r;
+          const py = cy + Math.sin(ang) * r;
+          ctx.fillStyle = i % 2 === 0 ? '#ff3300' : '#ffcc00';
+          ctx.shadowColor = '#ff6600';
+          ctx.beginPath();
+          ctx.arc(px, py, 2.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else if (charKey === 'aang') {
+        // Rotating air vortex arcs wrapping around the token
+        ctx.strokeStyle = 'rgba(0, 255, 204, 0.75)';
+        ctx.lineWidth = 2;
+        ctx.shadowColor = '#00ffcc';
+        ctx.shadowBlur = 10;
+        for (let i = 0; i < 2; i++) {
+          const startAng = t * 3.5 + i * Math.PI;
+          ctx.beginPath();
+          ctx.arc(cx, cy, tokenR + 5, startAng, startAng + Math.PI * 0.6);
+          ctx.stroke();
+        }
+      } else if (charKey === 'toph') {
+        // 3 floating jade stone shards orbiting in a 3D tilted ellipse
+        ctx.fillStyle = '#55ff77';
+        ctx.shadowColor = '#00cc44';
+        ctx.shadowBlur = 10;
+        for (let i = 0; i < 3; i++) {
+          const ang = t * 2.2 + i * (Math.PI * 2 / 3);
+          const px = cx + Math.cos(ang) * (tokenR + 7);
+          const py = cy + Math.sin(ang) * (tokenR * 0.55);
+          ctx.save();
+          ctx.translate(px, py);
+          ctx.rotate(ang);
+          ctx.fillRect(-2.5, -2.5, 5, 5);
+          ctx.restore();
+        }
+      } else if (charKey === 'azula') {
+        // Crackling purple & cyan lightning sparks arcing along rim
+        ctx.strokeStyle = (Math.floor(t * 22) % 2 === 0) ? '#a855f7' : '#00f5ff';
+        ctx.shadowColor = '#c084fc';
+        ctx.shadowBlur = 12;
+        ctx.lineWidth = 2;
+        const baseAng = (t * 5.5) % (Math.PI * 2);
+        ctx.beginPath();
+        const r1 = tokenR + 4;
+        const r2 = tokenR + 9;
+        ctx.moveTo(cx + Math.cos(baseAng) * r1, cy + Math.sin(baseAng) * r1);
+        ctx.lineTo(cx + Math.cos(baseAng + 0.3) * r2, cy + Math.sin(baseAng + 0.3) * r2);
+        ctx.lineTo(cx + Math.cos(baseAng + 0.6) * r1, cy + Math.sin(baseAng + 0.6) * r1);
+        ctx.stroke();
+      }
+    }
+
+    // Strike Shockwave Ring Burst
+    const strikeVal = isP1 ? this.p1StrikeAnim : this.p2StrikeAnim;
+    if (strikeVal > 0) {
+      const strikeR = tokenR + (1 - strikeVal) * 32;
+      ctx.save();
+      ctx.strokeStyle = char.color;
+      ctx.shadowColor = char.glow;
+      ctx.shadowBlur = 16;
+      ctx.globalAlpha = strikeVal;
+      ctx.lineWidth = 3.5 * strikeVal;
+      ctx.beginPath();
+      ctx.arc(cx, cy, strikeR, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Frozen ice encasement overlay
+    if (isFrozen) {
+      ctx.fillStyle = 'rgba(0, 190, 255, 0.45)';
+      ctx.beginPath();
+      ctx.arc(cx, cy, tokenR + 2, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(cx - 8, cy); ctx.lineTo(cx + 8, cy);
+      ctx.moveTo(cx, cy - 8); ctx.lineTo(cx, cy + 8);
+      ctx.moveTo(cx - 6, cy - 6); ctx.lineTo(cx + 6, cy + 6);
+      ctx.moveTo(cx - 6, cy + 6); ctx.lineTo(cx + 6, cy - 6);
+      ctx.stroke();
+    }
+
+    // Shocked electric aura
+    if (isShocked) {
+      ctx.strokeStyle = '#00f5ff';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.arc(cx, cy, tokenR + 6, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
     }
 
     // Wind catch indicator
@@ -1905,6 +2462,107 @@ class AvatarElementGame {
       ctx.moveTo(b.x - b.radius * 0.4, b.y + b.radius * 0.2);
       ctx.lineTo(b.x + b.radius * 0.2, b.y - b.radius * 0.1);
       ctx.stroke();
+
+      ctx.restore();
+    });
+  }
+
+  drawLightningBolts() {
+    const ctx = this.ctx;
+    const t = Date.now() / 1000;
+
+    this.lightningBolts.forEach(bolt => {
+      ctx.save();
+      const dir = bolt.isP1 ? 1 : -1;
+      const startX = bolt.x - dir * bolt.width;
+      const endX = bolt.x;
+
+      ctx.shadowBlur = 22;
+      ctx.shadowColor = '#00f5ff';
+
+      // 1. Outer Neon Violet Aura
+      ctx.strokeStyle = 'rgba(168, 85, 247, 0.75)';
+      ctx.lineWidth = 8;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(startX, bolt.y);
+
+      const segments = 6;
+      for (let s = 1; s <= segments; s++) {
+        const segX = startX + (dir * (bolt.width / segments) * s);
+        const zigzag = s === segments ? 0 : (s % 2 === 0 ? 8 : -8) * Math.sin(t * 30 + s);
+        ctx.lineTo(segX, bolt.y + zigzag);
+      }
+      ctx.stroke();
+
+      // 2. Pure White/Cyan Core Jagged Bolt
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 3.5;
+      ctx.beginPath();
+      ctx.moveTo(startX, bolt.y);
+      for (let s = 1; s <= segments; s++) {
+        const segX = startX + (dir * (bolt.width / segments) * s);
+        const zigzag = s === segments ? 0 : (s % 2 === 0 ? 8 : -8) * Math.sin(t * 30 + s);
+        ctx.lineTo(segX, bolt.y + zigzag);
+      }
+      ctx.stroke();
+
+      // 3. Lightning Spear Head Tip
+      ctx.fillStyle = '#00f5ff';
+      ctx.beginPath();
+      ctx.arc(endX, bolt.y, 7, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(endX, bolt.y, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
+    });
+  }
+
+  drawStaticPulses() {
+    const ctx = this.ctx;
+    const t = Date.now() / 1000;
+
+    this.staticPulses.forEach(pulse => {
+      ctx.save();
+      const lifeRatio = Math.max(0, 1 - pulse.radius / pulse.maxRadius);
+      ctx.globalAlpha = lifeRatio;
+
+      ctx.shadowBlur = 25;
+      ctx.shadowColor = '#c084fc';
+
+      // Outer EMP Ring
+      ctx.strokeStyle = '#a855f7';
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.arc(pulse.x, pulse.y, pulse.radius, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Inner Sharp Electric Ring
+      ctx.strokeStyle = '#00f5ff';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(pulse.x, pulse.y, Math.max(1, pulse.radius - 6), 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Radial Lightning Tendrils
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      for (let a = 0; a < 8; a++) {
+        const ang = a * (Math.PI / 4) + t * 6;
+        const r1 = Math.max(5, pulse.radius - 16);
+        const r2 = pulse.radius + 6;
+        const midR = (r1 + r2) / 2;
+        const offset = Math.sin(t * 20 + a) * 6;
+        ctx.beginPath();
+        ctx.moveTo(pulse.x + Math.cos(ang) * r1, pulse.y + Math.sin(ang) * r1);
+        ctx.lineTo(pulse.x + Math.cos(ang + 0.15) * midR + offset, pulse.y + Math.sin(ang + 0.15) * midR);
+        ctx.lineTo(pulse.x + Math.cos(ang) * r2, pulse.y + Math.sin(ang) * r2);
+        ctx.stroke();
+      }
 
       ctx.restore();
     });
@@ -2150,6 +2808,28 @@ class AvatarElementGame {
       if (!this.earthMapCanvas) this.createEarthMapCache();
       ctx.drawImage(this.earthMapCanvas, 0, 0);
 
+    } else if (this.selectedMap === 'storm') {
+      if (!this.stormMapCanvas) this.createStormMapCache();
+      ctx.drawImage(this.stormMapCanvas, 0, 0);
+
+      // Ambient Electric Sparks & Arc Currents
+      ctx.save();
+      const pulse = 0.35 + Math.sin(t * 6) * 0.2;
+      ctx.strokeStyle = `rgba(192, 132, 252, ${pulse})`;
+      ctx.lineWidth = 2.2;
+      // Flickering lightning arcs along rails
+      for (let i = 0; i < 4; i++) {
+        const arcX = b + ((i * 220 + t * 90) % (rinkW - 60));
+        const isTop = i % 2 === 0;
+        const arcY = isTop ? b + 5 : b + rinkH - 5;
+        ctx.beginPath();
+        ctx.moveTo(arcX, arcY);
+        ctx.lineTo(arcX + 14, arcY + (isTop ? 6 : -6));
+        ctx.lineTo(arcX + 28, arcY);
+        ctx.stroke();
+      }
+      ctx.restore();
+
     } else {
       ctx.fillStyle = '#0d0f18';
       ctx.fillRect(b, b, rinkW, rinkH);
@@ -2165,8 +2845,10 @@ class AvatarElementGame {
     this.drawWaterWhips();
     this.drawFlameWall();
     this.drawFlyingBoulders();
+    this.drawLightningBolts();
+    this.drawStaticPulses();
 
-    // Map Hazard Visuals (Flames, Ice Waves, Tornados)
+    // Map Hazard Visuals (Flames, Ice Waves, Tornados, Lightning)
     this.drawMapHazards();
 
     // Characters behind paddles
@@ -2205,6 +2887,70 @@ class AvatarElementGame {
         const dy = this.puck.y + Math.sin(ang) * (this.puck.radius + 7);
         ctx.beginPath();
         ctx.arc(dx, dy, 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    // Electrified Puck Lightning Aura Visual
+    if (this.puckLightningBoostTimer > 0) {
+      ctx.save();
+      const t = Date.now() / 1000;
+      ctx.shadowBlur = 24;
+      ctx.shadowColor = '#c084fc';
+      ctx.strokeStyle = '#00f5ff';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(this.puck.x, this.puck.y, this.puck.radius + 5 + Math.sin(t * 24) * 2.5, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.fillStyle = 'rgba(168, 85, 247, 0.35)';
+      ctx.beginPath();
+      ctx.arc(this.puck.x, this.puck.y, this.puck.radius + 4, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Mini zigzag lightning sparks around puck
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.8;
+      for (let i = 0; i < 4; i++) {
+        const ang = t * 14 + i * (Math.PI / 2);
+        const r1 = this.puck.radius + 4;
+        const r2 = this.puck.radius + 11;
+        ctx.beginPath();
+        ctx.moveTo(this.puck.x + Math.cos(ang) * r1, this.puck.y + Math.sin(ang) * r1);
+        ctx.lineTo(this.puck.x + Math.cos(ang + 0.3) * (r1 + 4), this.puck.y + Math.sin(ang + 0.3) * (r1 + 4));
+        ctx.lineTo(this.puck.x + Math.cos(ang) * r2, this.puck.y + Math.sin(ang) * r2);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    // Blazing Fire Aura Visual (from Fire Map Hazard or Zuko Flame Wall)
+    if (this.puckFireBoostTimer > 0) {
+      ctx.save();
+      const t = Date.now() / 1000;
+      ctx.shadowBlur = 24;
+      ctx.shadowColor = '#ff4400';
+      ctx.strokeStyle = '#ffcc00';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(this.puck.x, this.puck.y, this.puck.radius + 5 + Math.sin(t * 18) * 2.5, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.fillStyle = 'rgba(255, 68, 0, 0.35)';
+      ctx.beginPath();
+      ctx.arc(this.puck.x, this.puck.y, this.puck.radius + 4, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Rising flame embers around puck
+      ctx.fillStyle = '#ffeedd';
+      for (let i = 0; i < 4; i++) {
+        const ang = -Math.PI / 2 + Math.sin(t * 12 + i * 1.8) * 1.3;
+        const dist = this.puck.radius + 6 + Math.sin(t * 8 + i) * 4;
+        const ex = this.puck.x + Math.cos(ang) * dist;
+        const ey = this.puck.y + Math.sin(ang) * dist;
+        ctx.beginPath();
+        ctx.arc(ex, ey, 2.2, 0, Math.PI * 2);
         ctx.fill();
       }
       ctx.restore();
@@ -2309,10 +3055,22 @@ class AvatarElementGame {
       earthRockW: this.earthRockW,
       earthRockH: this.earthRockH,
 
+      // Storm Map Hazards Sync
+      stormLightningActive: this.stormLightningActive,
+      stormLightningTelegraph: this.stormLightningTelegraph,
+      stormLightningX: Math.round(this.stormLightningX),
+      stormLightningY: Math.round(this.stormLightningY),
+      stormLightningRadius: this.stormLightningRadius,
+      p1ShockTimer: this.p1ShockTimer,
+      p2ShockTimer: this.p2ShockTimer,
+      puckLightningBoostTimer: this.puckLightningBoostTimer,
+
       // Ability Entities
       iceBeams: this.iceBeams ? this.iceBeams.map(b => ({ x: Math.round(b.x), y: Math.round(b.y), width: b.width, height: b.height, isP1: b.isP1 })) : [],
       waterWhips: this.waterWhips ? this.waterWhips.map(w => ({ x: Math.round(w.x), y: Math.round(w.y), width: w.width, height: w.height, isP1: w.isP1 })) : [],
       boulders: this.boulders ? this.boulders.map(b => ({ x: Math.round(b.x), y: Math.round(b.y), radius: b.radius, isP1: b.isP1, isStopped: b.isStopped })) : [],
+      lightningBolts: this.lightningBolts ? this.lightningBolts.map(b => ({ x: Math.round(b.x), y: Math.round(b.y), vx: b.vx, width: b.width, height: b.height, isP1: b.isP1 })) : [],
+      staticPulses: this.staticPulses ? this.staticPulses.map(p => ({ x: Math.round(p.x), y: Math.round(p.y), radius: Math.round(p.radius), maxRadius: p.maxRadius, isP1: p.isP1 })) : [],
 
       hitSpeedMeterText: this.elHitSpeed ? this.elHitSpeed.innerText : ''
     };
@@ -2349,6 +3107,7 @@ class AvatarElementGame {
       this.fireMapCanvas = null;
       this.airMapCanvas = null;
       this.earthMapCanvas = null;
+      this.stormMapCanvas = null;
     }
     this.updateChampionConfigs();
 
@@ -2405,6 +3164,9 @@ class AvatarElementGame {
     this.flameWallActive = state.flameWallActive;
     this.flameWallStepCount = state.flameWallStepCount;
     this.flameWallH = state.flameWallH;
+    this.p1ShockTimer = state.p1ShockTimer || 0;
+    this.p2ShockTimer = state.p2ShockTimer || 0;
+    this.puckLightningBoostTimer = state.puckLightningBoostTimer || 0;
 
     // Map Hazards Sync
     this.fireFlameActive = !!state.fireFlameActive;
@@ -2431,10 +3193,18 @@ class AvatarElementGame {
     this.earthRockW = state.earthRockW || 64;
     this.earthRockH = state.earthRockH || 64;
 
+    this.stormLightningActive = state.stormLightningActive || 0;
+    this.stormLightningTelegraph = state.stormLightningTelegraph || 0;
+    this.stormLightningX = state.stormLightningX || 0;
+    this.stormLightningY = state.stormLightningY || 0;
+    this.stormLightningRadius = state.stormLightningRadius || 55;
+
     // Ability Entities
     if (state.iceBeams) this.iceBeams = state.iceBeams;
     if (state.waterWhips) this.waterWhips = state.waterWhips;
     if (state.boulders) this.boulders = state.boulders;
+    if (state.lightningBolts) this.lightningBolts = state.lightningBolts;
+    if (state.staticPulses) this.staticPulses = state.staticPulses;
 
     if (state.hitSpeedMeterText && this.elHitSpeed) {
       this.elHitSpeed.innerText = state.hitSpeedMeterText;
@@ -2719,13 +3489,124 @@ class AvatarElementGame {
 
       ctx.restore();
     }
-  }
 
-  step() {
-    if (this.isPlaying && !this.isPaused) {
-      this.updatePhysics();
+    // Storm Map Hazard: Telegraph Warning Circle & Celestial Lightning Bolt Strike
+    if (this.selectedMap === 'storm') {
+      const border = this.table.border;
+
+      // 1. Telegraph Warning Indicator
+      if (this.stormLightningTelegraph > 0) {
+        ctx.save();
+        const pulse = 0.5 + Math.sin(t * 14) * 0.5;
+        const progress = 1 - (this.stormLightningTelegraph / 70);
+
+        // Outer pulsing hazard circle
+        ctx.strokeStyle = `rgba(168, 85, 247, ${0.4 + pulse * 0.5})`;
+        ctx.lineWidth = 3;
+        ctx.setLineDash([8, 6]);
+        ctx.beginPath();
+        ctx.arc(this.stormLightningX, this.stormLightningY, this.stormLightningRadius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Converging warning circle
+        ctx.strokeStyle = '#00f5ff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(this.stormLightningX, this.stormLightningY, Math.max(8, this.stormLightningRadius * (1 - progress)), 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Warning core
+        ctx.fillStyle = `rgba(192, 132, 252, ${0.2 + pulse * 0.3})`;
+        ctx.beginPath();
+        ctx.arc(this.stormLightningX, this.stormLightningY, this.stormLightningRadius * 0.4, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Mini crackling ground arcs in warning area
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.5;
+        for (let i = 0; i < 3; i++) {
+          const a1 = (i / 3) * Math.PI * 2 + t * 8;
+          const a2 = a1 + 0.5;
+          const r1 = 10;
+          const r2 = this.stormLightningRadius * 0.85;
+          ctx.beginPath();
+          ctx.moveTo(this.stormLightningX + Math.cos(a1) * r1, this.stormLightningY + Math.sin(a1) * r1);
+          ctx.lineTo(this.stormLightningX + Math.cos(a1 + 0.2) * (r1 + 15), this.stormLightningY + Math.sin(a1 + 0.2) * (r1 + 15));
+          ctx.lineTo(this.stormLightningX + Math.cos(a2) * r2, this.stormLightningY + Math.sin(a2) * r2);
+          ctx.stroke();
+        }
+
+        ctx.restore();
+      }
+
+      // 2. Active Lightning Bolt Strike
+      if (this.stormLightningActive > 0) {
+        ctx.save();
+        const flashAlpha = this.stormLightningActive / 18;
+        ctx.globalAlpha = flashAlpha;
+
+        // Ground shockwave disk
+        ctx.fillStyle = 'rgba(0, 245, 255, 0.45)';
+        ctx.shadowBlur = 30;
+        ctx.shadowColor = '#00f5ff';
+        ctx.beginPath();
+        ctx.arc(this.stormLightningX, this.stormLightningY, this.stormLightningRadius * 1.2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Main Sky-to-Ground Lightning Bolt
+        const topY = border;
+        const botY = this.stormLightningY;
+        const boltX = this.stormLightningX;
+
+        // Wide Purple Aura Beam
+        ctx.strokeStyle = 'rgba(168, 85, 247, 0.85)';
+        ctx.lineWidth = 18;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(boltX, topY);
+
+        const boltSegments = 8;
+        const segH = (botY - topY) / boltSegments;
+        for (let s = 1; s <= boltSegments; s++) {
+          const sy = topY + s * segH;
+          const sx = s === boltSegments ? boltX : boltX + (s % 2 === 0 ? 18 : -18) * Math.sin(t * 20 + s);
+          ctx.lineTo(sx, sy);
+        }
+        ctx.stroke();
+
+        // Bright Cyan & Pure White Core Bolt
+        ctx.strokeStyle = '#00f5ff';
+        ctx.lineWidth = 8;
+        ctx.beginPath();
+        ctx.moveTo(boltX, topY);
+        for (let s = 1; s <= boltSegments; s++) {
+          const sy = topY + s * segH;
+          const sx = s === boltSegments ? boltX : boltX + (s % 2 === 0 ? 18 : -18) * Math.sin(t * 20 + s);
+          ctx.lineTo(sx, sy);
+        }
+        ctx.stroke();
+
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 3.5;
+        ctx.beginPath();
+        ctx.moveTo(boltX, topY);
+        for (let s = 1; s <= boltSegments; s++) {
+          const sy = topY + s * segH;
+          const sx = s === boltSegments ? boltX : boltX + (s % 2 === 0 ? 18 : -18) * Math.sin(t * 20 + s);
+          ctx.lineTo(sx, sy);
+        }
+        ctx.stroke();
+
+        // Impact Ground Blast Starburst
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(boltX, botY, 14, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+      }
     }
-    this.render();
   }
 
   createEarthMapCache() {
@@ -3467,6 +4348,231 @@ class AvatarElementGame {
 
     // Right Goal Alcove Recessed Dark Shadow
     ctx.fillStyle = '#4e5235';
+    ctx.fillRect(this.width - b, gY, b, gH);
+  }
+
+  createStormMapCache() {
+    this.stormMapCanvas = document.createElement('canvas');
+    this.stormMapCanvas.width = this.width;
+    this.stormMapCanvas.height = this.height;
+    const ctx = this.stormMapCanvas.getContext('2d');
+    const b = this.table.border;
+    const rinkW = this.width - b * 2;
+    const rinkH = this.height - b * 2;
+    const centerX = this.width / 2;
+    const centerY = this.height / 2;
+
+    // 0. Fill Outer Canvas Background (Dark Stormy Night / Obsidian)
+    ctx.fillStyle = '#100d1a';
+    ctx.fillRect(0, 0, this.width, this.height);
+
+    // 1. Base Obsidian / Charcoal Slate Floor with Subtle Midnight Purple Gradient
+    const bgGrad = ctx.createLinearGradient(b, b, this.width - b, this.height - b);
+    bgGrad.addColorStop(0, '#151224');
+    bgGrad.addColorStop(0.25, '#1d1833');
+    bgGrad.addColorStop(0.5, '#261f42');
+    bgGrad.addColorStop(0.75, '#1d1833');
+    bgGrad.addColorStop(1, '#151224');
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(b, b, rinkW, rinkH);
+
+    // Interlocking Hexagonal / Square Tile Grout Seams
+    ctx.strokeStyle = '#0b0914';
+    ctx.lineWidth = 2.5;
+
+    const tileW = 120;
+    const tileH = 95;
+
+    for (let x = b + tileW; x < this.width - b; x += tileW) {
+      ctx.beginPath();
+      ctx.moveTo(x, b);
+      ctx.lineTo(x, b + rinkH);
+      ctx.stroke();
+
+      // Metallic corner rivets
+      ctx.fillStyle = '#2d244a';
+      for (let ry = b + 15; ry < b + rinkH; ry += tileH) {
+        ctx.beginPath();
+        ctx.arc(x, ry, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    for (let y = b + tileH; y < b + rinkH; y += tileH) {
+      ctx.beginPath();
+      ctx.moveTo(b, y);
+      ctx.lineTo(this.width - b, y);
+      ctx.stroke();
+    }
+
+    // 2. Neon Violet & Cyan Power Conduit Grooves running across field
+    ctx.strokeStyle = 'rgba(168, 85, 247, 0.28)';
+    ctx.lineWidth = 3;
+    const conduitOffset = 110;
+
+    // Horizontal Upper Conduit
+    ctx.beginPath();
+    ctx.moveTo(b + 40, b + conduitOffset);
+    ctx.lineTo(this.width - b - 40, b + conduitOffset);
+    ctx.stroke();
+
+    // Horizontal Lower Conduit
+    ctx.beginPath();
+    ctx.moveTo(b + 40, this.height - b - conduitOffset);
+    ctx.lineTo(this.width - b - 40, this.height - b - conduitOffset);
+    ctx.stroke();
+
+    // Cyan High-Voltage Core Lines
+    ctx.strokeStyle = 'rgba(0, 245, 255, 0.4)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(b + 40, b + conduitOffset);
+    ctx.lineTo(this.width - b - 40, b + conduitOffset);
+    ctx.moveTo(b + 40, this.height - b - conduitOffset);
+    ctx.lineTo(this.width - b - 40, this.height - b - conduitOffset);
+    ctx.stroke();
+
+    // 3. Center Lightning Trigram & Royal Fire Nation Lightning Emblem
+    const centerLineGrad = ctx.createLinearGradient(0, b, 0, b + rinkH);
+    centerLineGrad.addColorStop(0, '#7c3aed');
+    centerLineGrad.addColorStop(0.5, '#00f5ff');
+    centerLineGrad.addColorStop(1, '#7c3aed');
+
+    ctx.strokeStyle = centerLineGrad;
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.moveTo(centerX, b);
+    ctx.lineTo(centerX, b + rinkH);
+    ctx.stroke();
+
+    const outerR = 78;
+    const innerR = 64;
+
+    // Outer 3D Metallic Ring with Golden & Violet Bevel
+    const ringGrad = ctx.createLinearGradient(centerX - outerR, centerY - outerR, centerX + outerR, centerY + outerR);
+    ringGrad.addColorStop(0, '#581c87');
+    ringGrad.addColorStop(0.3, '#a855f7');
+    ringGrad.addColorStop(0.5, '#ffffff');
+    ringGrad.addColorStop(0.8, '#c084fc');
+    ringGrad.addColorStop(1, '#3b0764');
+
+    ctx.fillStyle = ringGrad;
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, outerR, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = '#2e1065';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+
+    // Inner Disk (Deep Midnight Electric Plate)
+    const diskGrad = ctx.createRadialGradient(centerX - 8, centerY - 8, 6, centerX, centerY, innerR);
+    diskGrad.addColorStop(0, '#2e1065');
+    diskGrad.addColorStop(0.65, '#1e1b4b');
+    diskGrad.addColorStop(1, '#0f0c1d');
+
+    ctx.fillStyle = diskGrad;
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, innerR, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = '#a855f7';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Iconic Lightning Bending Trigram / 3-Pronged Celestial Lightning Symbol
+    ctx.save();
+    ctx.fillStyle = '#00f5ff';
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2.5;
+
+    for (let bolt = 0; bolt < 3; bolt++) {
+      const baseAng = bolt * (Math.PI * 2 / 3) - Math.PI / 2;
+      ctx.save();
+      ctx.translate(centerX, centerY);
+      ctx.rotate(baseAng);
+
+      ctx.beginPath();
+      ctx.moveTo(0, -10);
+      ctx.lineTo(8, -24);
+      ctx.lineTo(2, -24);
+      ctx.lineTo(12, -46);
+      ctx.lineTo(-2, -30);
+      ctx.lineTo(4, -30);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    // Central Luminous Core
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, 8, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#c084fc';
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // 4. 3D Tesla Coil Conductor Rails & Goal Pillars
+    const gY = this.table.goalYStart;
+    const gH = this.table.goalSize;
+
+    // Top & Bottom Rails (Dark Titanium Gunmetal with Purple Linear Conductor)
+    const railGrad = ctx.createLinearGradient(0, 0, 0, b);
+    railGrad.addColorStop(0, '#1a1829');
+    railGrad.addColorStop(0.4, '#2e284a');
+    railGrad.addColorStop(0.7, '#483d73');
+    railGrad.addColorStop(1, '#1e1a33');
+
+    ctx.fillStyle = railGrad;
+    ctx.fillRect(0, 0, this.width, b);
+    ctx.fillRect(0, this.height - b, this.width, b);
+
+    // Glowing Conductor Core in Rails
+    ctx.fillStyle = '#a855f7';
+    ctx.fillRect(b + 30, 4, rinkW - 60, 3);
+    ctx.fillRect(b + 30, this.height - 7, rinkW - 60, 3);
+
+    ctx.fillStyle = '#00f5ff';
+    ctx.fillRect(b + 30, 5, rinkW - 60, 1);
+    ctx.fillRect(b + 30, this.height - 6, rinkW - 60, 1);
+
+    // Left Goal 3D Tesla Conductor Pillars (Top & Bottom of Left Goal)
+    const drawTeslaPillar = (px, py, pw, ph) => {
+      ctx.fillStyle = '#312b4f';
+      ctx.fillRect(px, py, pw, ph);
+
+      const ringSpacing = 16;
+      for (let ry = py + 6; ry < py + ph - 8; ry += ringSpacing) {
+        ctx.fillStyle = '#7c3aed';
+        ctx.fillRect(px, ry, pw, 6);
+        ctx.fillStyle = '#00f5ff';
+        ctx.fillRect(px + 4, ry + 2, pw - 8, 2);
+      }
+
+      ctx.strokeStyle = '#1a162b';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(px, py, pw, ph);
+    };
+
+    drawTeslaPillar(0, 0, b + 30, gY);
+    drawTeslaPillar(0, gY + gH, b + 30, this.height - (gY + gH));
+
+    // Left Goal Alcove Recessed Dark Shadow
+    ctx.fillStyle = '#090712';
+    ctx.fillRect(0, gY, b, gH);
+
+    // Right Goal 3D Tesla Conductor Pillars (Top & Bottom of Right Goal)
+    drawTeslaPillar(this.width - b - 30, 0, b + 30, gY);
+    drawTeslaPillar(this.width - b - 30, gY + gH, b + 30, this.height - (gY + gH));
+
+    // Right Goal Alcove Recessed Dark Shadow
+    ctx.fillStyle = '#090712';
     ctx.fillRect(this.width - b, gY, b, gH);
   }
 }

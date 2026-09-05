@@ -133,6 +133,54 @@ class SoundManager {
       startTime += note.d * 0.9;
     });
   }
+
+  playLightning() {
+    if (!this.enabled) return;
+    this.init();
+    if (!this.ctx) return;
+
+    const now = this.ctx.currentTime;
+    // Crackling thunder / electrical zap sound
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(850, now);
+    osc.frequency.exponentialRampToValueAtTime(80, now + 0.22);
+
+    gain.gain.setValueAtTime(0.35, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.22);
+  }
+
+  playShock() {
+    if (!this.enabled) return;
+    this.init();
+    if (!this.ctx) return;
+
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(320, now);
+    osc.frequency.setValueAtTime(440, now + 0.04);
+    osc.frequency.setValueAtTime(200, now + 0.08);
+
+    gain.gain.setValueAtTime(0.25, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.16);
+  }
 }
 
 const soundFx = new SoundManager();
