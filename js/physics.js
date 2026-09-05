@@ -157,6 +157,10 @@ class Paddle {
     this.height = height;
     this.color = color;
     this.isP1 = isP1;
+    this.moveVx = 0;
+    this.moveVy = 0;
+    this.tiltAngle = 0;
+    this.targetTilt = 0;
   }
 
   reset() {
@@ -166,6 +170,10 @@ class Paddle {
     this.prevY = this.startY;
     this.vx = 0;
     this.vy = 0;
+    this.moveVx = 0;
+    this.moveVy = 0;
+    this.tiltAngle = 0;
+    this.targetTilt = 0;
   }
 
   updateVelocity() {
@@ -177,6 +185,12 @@ class Paddle {
 
   draw(ctx) {
     ctx.save();
+
+    if (this.tiltAngle) {
+      ctx.translate(this.x, this.y);
+      ctx.rotate(this.tiltAngle);
+      ctx.translate(-this.x, -this.y);
+    }
 
     const left = this.x - this.width / 2;
     const top = this.y - this.height / 2;

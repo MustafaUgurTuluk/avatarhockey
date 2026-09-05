@@ -20,22 +20,30 @@ class AvatarElementGame {
     // Table & Puck
     this.table = new AirHockeyTable(this.width, this.height);
     
-    // Ball physics: NO friction, constant base speed
+    // Ball physics: Dynamic rally acceleration, escalating speed cap
     this.puck = new Puck(this.width / 2, this.height / 2, 14);
     this.puck.friction = 1.0;
-    this.puck.maxSpeed = 16;
-    this.baseSpeed = 6.5;
+    this.puck.maxSpeed = 24.5;
+    this.baseSpeed = 7.0;
+
+    // Game loop timing & Rally heat state
+    this.gameFrame = 0;
+    this.rallyCount = 0;
+    this.rallyHeat = 0;
+    this.lastHitFrame = 0;
+    this.screenShakeTimer = 0;
 
     // Flat Wall Paddles
     this.p1 = new Paddle(100, this.height / 2, 18, 100, '#00aaff', true);
     this.p2 = new Paddle(this.width - 100, this.height / 2, 18, 100, '#ff3300', false);
 
-    // Avatar Champions (Equal Base Speeds - Slightly Slower)
+    // Avatar Champions (Weight, Mass, Acceleration, Braking & Agility)
     this.champions = {
       zuko: {
         id: 'zuko', name: 'Zuko', element: 'Ateş',
         icon: '🔥', color: '#ff3300', glow: '#ff6600',
         moveSpeed: 4.8, strikeForce: 10.0, paddleHeight: 95,
+        mass: 1.1, accel: 0.32, brake: 0.60,
         trailColor: '#ff4400',
         abilityName: 'Ateş Topu',
         abilityDesc: 'Herhangi bir yerden topa ateş topu fırlatarak müdahale eder.',
@@ -48,6 +56,7 @@ class AvatarElementGame {
         id: 'katara', name: 'Katara', element: 'Su',
         icon: '🌊', color: '#00aaff', glow: '#33ccff',
         moveSpeed: 4.8, strikeForce: 9.0, paddleHeight: 110,
+        mass: 1.0, accel: 0.30, brake: 0.62,
         trailColor: '#00ccff',
         abilityName: 'Buz Hunisi Duvarı',
         abilityDesc: 'Rakip kaleye buz fırlatır. Bloklanamazsa 7sn boyunca kalede topu içeri yönlendiren buz hunisi oluşur.',
@@ -60,6 +69,7 @@ class AvatarElementGame {
         id: 'aang', name: 'Aang', element: 'Hava',
         icon: '🌪️', color: '#00ffcc', glow: '#66ffea',
         moveSpeed: 4.8, strikeForce: 9.5, paddleHeight: 90,
+        mass: 0.85, accel: 0.42, brake: 0.66,
         trailColor: '#00ffcc',
         abilityName: 'Rüzgar Çekimi & Fırlatma',
         abilityDesc: 'Yakınına gelen topu havayla çekip yakalar ve rakibe doğru süper hızla fırlatır.',
@@ -72,6 +82,7 @@ class AvatarElementGame {
         id: 'toph', name: 'Toph', element: 'Toprak',
         icon: '🪨', color: '#ffaa00', glow: '#ffcc00',
         moveSpeed: 4.8, strikeForce: 10.0, paddleHeight: 105,
+        mass: 1.35, accel: 0.24, brake: 0.55,
         trailColor: '#ffaa00',
         abilityName: 'Kaya Duvarı',
         abilityDesc: 'Kale ağzına kısa süreliğine kaya duvarı örer.',
@@ -84,6 +95,7 @@ class AvatarElementGame {
         id: 'azula', name: 'Azula', element: 'Yıldırım',
         icon: '⚡', color: '#a855f7', glow: '#c084fc',
         moveSpeed: 4.9, strikeForce: 10.2, paddleHeight: 96,
+        mass: 0.95, accel: 0.36, brake: 0.64,
         trailColor: '#d8b4fe',
         abilityName: 'Yıldırım Oku',
         abilityDesc: 'Topa saf yıldırım fırlatarak elektrik yükler; top zikzak yaparak süper hızla uçar.',
@@ -462,6 +474,10 @@ class AvatarElementGame {
     
     this.p1.reset();
     this.p2.reset();
+    this.rallyCount = 0;
+    this.rallyHeat = 0;
+    this.lastHitFrame = 0;
+    this.screenShakeTimer = 0;
 
     if (whoServes === 'p1') {
       this.puck.x = this.p1.x + this.p1.width / 2 + this.puck.radius + 5;
@@ -493,6 +509,9 @@ class AvatarElementGame {
     this.puck.vy = launchSpeed * Math.sin(angle);
     this.puck.lastHitBy = whoServes;
     this.puck.isWhipped = null;
+    this.rallyCount = 1;
+    this.rallyHeat = 0;
+    this.lastHitFrame = this.gameFrame || 0;
     
     soundFx.playHit(true, 0.8);
     this.updateHitSpeedMeter(launchSpeed);
@@ -748,27 +767,104 @@ class AvatarElementGame {
     const border = this.table.border;
 
     const applyMovement = (player, charKey, isP1, forceDx = null, forceDy = null) => {
-      let dx = 0, dy = 0;
+      let inputDx = 0, inputDy = 0;
       const freezeTimer = isP1 ? this.p1FreezeTimer : this.p2FreezeTimer;
       const char = this.champions[charKey];
       
       if (freezeTimer <= 0) {
         if (forceDx !== null && forceDy !== null) {
-          dx = forceDx; dy = forceDy; // AI movement
+          inputDx = forceDx; inputDy = forceDy; // AI movement
         } else {
           if (isP1) {
-            if (this.keys['KeyW']) dy -= char.moveSpeed;
-            if (this.keys['KeyS']) dy += char.moveSpeed;
-            if (this.keys['KeyA']) dx -= char.moveSpeed;
-            if (this.keys['KeyD']) dx += char.moveSpeed;
+            if (this.keys['KeyW']) inputDy -= char.moveSpeed;
+            if (this.keys['KeyS']) inputDy += char.moveSpeed;
+            if (this.keys['KeyA']) inputDx -= char.moveSpeed;
+            if (this.keys['KeyD']) inputDx += char.moveSpeed;
           } else {
-            if (this.keys['ArrowUp']) dy -= char.moveSpeed;
-            if (this.keys['ArrowDown']) dy += char.moveSpeed;
-            if (this.keys['ArrowLeft']) dx -= char.moveSpeed;
-            if (this.keys['ArrowRight']) dx += char.moveSpeed;
+            if (this.keys['ArrowUp']) inputDy -= char.moveSpeed;
+            if (this.keys['ArrowDown']) inputDy += char.moveSpeed;
+            if (this.keys['ArrowLeft']) inputDx -= char.moveSpeed;
+            if (this.keys['ArrowRight']) inputDx += char.moveSpeed;
           }
         }
       }
+
+      // Diagonal speed normalization for consistent velocity
+      if (inputDx !== 0 && inputDy !== 0) {
+        inputDx *= 0.7071;
+        inputDy *= 0.7071;
+      }
+
+      if (player.moveVx === undefined) player.moveVx = 0;
+      if (player.moveVy === undefined) player.moveVy = 0;
+      if (player.tiltAngle === undefined) player.tiltAngle = 0;
+
+      let dx = 0, dy = 0;
+
+      // Ice Map: Low-friction slippery movement (Katara is immune)
+      if (this.selectedMap === 'ice' && charKey !== 'katara') {
+        let iceVx = (isP1 ? this.p1IceVx : this.p2IceVx) || 0;
+        let iceVy = (isP1 ? this.p1IceVy : this.p2IceVy) || 0;
+
+        iceVx = iceVx * 0.94 + inputDx * 0.12;
+        iceVy = iceVy * 0.94 + inputDy * 0.12;
+
+        const currentSpeed = Math.hypot(iceVx, iceVy);
+        if (currentSpeed > char.moveSpeed) {
+          iceVx = (iceVx / currentSpeed) * char.moveSpeed;
+          iceVy = (iceVy / currentSpeed) * char.moveSpeed;
+        }
+
+        if (isP1) { this.p1IceVx = iceVx; this.p1IceVy = iceVy; }
+        else { this.p2IceVx = iceVx; this.p2IceVy = iceVy; }
+
+        player.moveVx = iceVx;
+        player.moveVy = iceVy;
+        dx = iceVx;
+        dy = iceVy;
+      } else {
+        // WEIGHT & TRACTION INERTIA (Normal maps & Katara on ice)
+        // Distinct physical weight: smooth ramp up (3-5 frames), sharp braking on release (2-3 frames), NO ice sliding!
+        const accelRate = char.accel || 0.32;
+        const brakeRate = char.brake || 0.60;
+
+        // X-Axis
+        if (inputDx !== 0) {
+          const isReversingX = (player.moveVx > 0.3 && inputDx < 0) || (player.moveVx < -0.3 && inputDx > 0);
+          const effectiveAccelX = isReversingX ? Math.min(0.75, accelRate * 2.2) : accelRate;
+          player.moveVx += (inputDx - player.moveVx) * effectiveAccelX;
+        } else {
+          player.moveVx *= brakeRate;
+          if (Math.abs(player.moveVx) < 0.18) player.moveVx = 0;
+        }
+
+        // Y-Axis
+        if (inputDy !== 0) {
+          const isReversingY = (player.moveVy > 0.3 && inputDy < 0) || (player.moveVy < -0.3 && inputDy > 0);
+          const effectiveAccelY = isReversingY ? Math.min(0.75, accelRate * 2.2) : accelRate;
+          player.moveVy += (inputDy - player.moveVy) * effectiveAccelY;
+        } else {
+          player.moveVy *= brakeRate;
+          if (Math.abs(player.moveVy) < 0.18) player.moveVy = 0;
+        }
+
+        // Hard clamp to char.moveSpeed
+        const curSpd = Math.hypot(player.moveVx, player.moveVy);
+        if (curSpd > char.moveSpeed) {
+          player.moveVx = (player.moveVx / curSpd) * char.moveSpeed;
+          player.moveVy = (player.moveVy / curSpd) * char.moveSpeed;
+        }
+
+        if (isP1) { this.p1IceVx = player.moveVx; this.p1IceVy = player.moveVy; }
+        else { this.p2IceVx = player.moveVx; this.p2IceVy = player.moveVy; }
+
+        dx = player.moveVx;
+        dy = player.moveVy;
+      }
+
+      // Dynamic Inertia Tilt (Paddle & portrait tilt forward with acceleration)
+      const targetTilt = (player.moveVx / char.moveSpeed) * (isP1 ? 0.08 : -0.08);
+      player.tiltAngle = (player.tiltAngle || 0) + (targetTilt - (player.tiltAngle || 0)) * 0.25;
 
       // Static Shock Jitter Disruption (when hit by Azula's shockwave or lightning)
       const shockTimer = isP1 ? this.p1ShockTimer : this.p2ShockTimer;
@@ -796,30 +892,6 @@ class AvatarElementGame {
           dy -= 2.0; // Repelled upward from bottom rail
           if (Math.random() < 0.2) effects.addHitSparks(player.x, player.y, 0, -1, '#a855f7', false);
         }
-      }
-
-      // Ice Map: Slippery (Clamped to max char.moveSpeed)
-      if (this.selectedMap === 'ice' && charKey !== 'katara') {
-        let iceVx = (isP1 ? this.p1IceVx : this.p2IceVx) || 0;
-        let iceVy = (isP1 ? this.p1IceVy : this.p2IceVy) || 0;
-
-        iceVx = iceVx * 0.94 + dx * 0.12;
-        iceVy = iceVy * 0.94 + dy * 0.12;
-
-        const currentSpeed = Math.hypot(iceVx, iceVy);
-        if (currentSpeed > char.moveSpeed) {
-          iceVx = (iceVx / currentSpeed) * char.moveSpeed;
-          iceVy = (iceVy / currentSpeed) * char.moveSpeed;
-        }
-
-        if (isP1) { this.p1IceVx = iceVx; this.p1IceVy = iceVy; }
-        else { this.p2IceVx = iceVx; this.p2IceVy = iceVy; }
-
-        dx = iceVx;
-        dy = iceVy;
-      } else {
-        if (isP1) { this.p1IceVx = dx; this.p1IceVy = dy; }
-        else { this.p2IceVx = dx; this.p2IceVy = dy; }
       }
 
       // Earth Map: Muddy soil center zone slowdown (Toph is immune)
@@ -881,8 +953,12 @@ class AvatarElementGame {
         else minX = (this.width / 2) + restriction;
       }
 
-      player.x = Math.max(minX, Math.min(maxX, player.x));
-      player.y = Math.max(border + player.height / 2, Math.min(this.height - border - player.height / 2, player.y));
+      const clampedX = Math.max(minX, Math.min(maxX, player.x));
+      const clampedY = Math.max(border + player.height / 2, Math.min(this.height - border - player.height / 2, player.y));
+      if (clampedX !== player.x) player.moveVx = 0;
+      if (clampedY !== player.y) player.moveVy = 0;
+      player.x = clampedX;
+      player.y = clampedY;
       player.updateVelocity();
     };
 
@@ -1101,37 +1177,133 @@ class AvatarElementGame {
         else this.puck.x = pMinX - this.puck.radius;
         
         const relY = (this.puck.y - paddle.y) / (paddle.height / 2);
-        const deflectAngle = relY * 0.6;
-        
-        // Calculate momentum from paddle speed
-        const paddleSpeedX = isP1 ? paddle.vx : -paddle.vx;
-        const momentumBonus = paddleSpeedX > 1 ? paddleSpeedX * 1.5 : 0;
-        
-        let speed = Math.max(this.baseSpeed, Math.hypot(this.puck.vx, this.puck.vy));
-        speed = Math.min(this.puck.maxSpeed, speed + momentumBonus);
+        const deflectAngle = relY * 0.62;
 
-        // Boost based on char strike force if paddle was moving forward
-        if (momentumBonus > 1) {
-          const hitPower = char.strikeForce + (momentumBonus * 0.5);
-          if (speed < hitPower) speed = Math.min(this.puck.maxSpeed, hitPower);
+        // 1. Rally Tracking (Hızlı Paslaşma & Seri Vuruş Sayacı)
+        const currentFrame = this.gameFrame || 0;
+        const framesSinceLastHit = currentFrame - (this.lastHitFrame || 0);
+        const isConsecutiveVolley = (this.puck.lastHitBy && this.puck.lastHitBy !== playerTag);
+
+        if (isConsecutiveVolley) {
+          this.rallyCount = (this.rallyCount || 0) + 1;
+        } else if (!this.puck.lastHitBy) {
+          this.rallyCount = 1;
         }
+        this.lastHitFrame = currentFrame;
+
+        // 2. Incoming Speed & Base Momentum
+        const currentPuckSpeed = Math.hypot(this.puck.vx, this.puck.vy);
+        let baseSpeed = Math.max(this.baseSpeed, currentPuckSpeed);
+
+        // 3. Consecutive Rally Speed Multiplier (Her ardışık başarılı pasta hız artar)
+        let rallyMultiplier = 1.0;
+        if (this.rallyCount >= 2) {
+          const stage = Math.min(8, this.rallyCount);
+          rallyMultiplier += (stage - 1) * 0.085;
+        }
+
+        // 4. Rapid / Close-Quarter Ping-Pong Boost (Yakın Mesafe Hızlı Sekme Bonusu)
+        let rapidBonus = 0;
+        if (framesSinceLastHit > 0 && framesSinceLastHit < 75) {
+          const quickness = 1.0 - (framesSinceLastHit / 75);
+          rapidBonus += quickness * 2.8;
+        }
+
+        // Extra close proximity bonus if paddles are close to each other
+        const paddleDistX = Math.abs(this.p1.x - this.p2.x);
+        if (paddleDistX < this.width * 0.55) {
+          const proximity = 1.0 - (paddleDistX / (this.width * 0.55));
+          rapidBonus += proximity * 2.2;
+        }
+
+        // 5. Offensive Smash / Drive vs Defensive Cushioning
+        const paddleMoveVx = paddle.moveVx !== undefined ? paddle.moveVx : paddle.vx;
+        const paddleMoveVy = paddle.moveVy !== undefined ? paddle.moveVy : paddle.vy;
+
+        const movingForward = isP1 ? paddleMoveVx > 0.35 : paddleMoveVx < -0.35;
+        const movingBackward = isP1 ? paddleMoveVx < -0.4 : paddleMoveVx > 0.4;
+        const forwardSpeed = Math.abs(paddleMoveVx);
+
+        let driveBonus = 0;
+        let isDriveSmash = false;
+        let isCushion = false;
+
+        if (movingForward) {
+          // Offensive Drive: Paddle momentum transferred directly into puck
+          driveBonus = forwardSpeed * 1.75;
+          isDriveSmash = true;
+
+          // Extra explosive impact if player triggered strike animation
+          const strikeActive = isP1 ? this.p1StrikeAnim > 0.25 : this.p2StrikeAnim > 0.25;
+          if (strikeActive) {
+            driveBonus += 3.2;
+            this.screenShakeTimer = 8;
+          }
+        } else if (movingBackward) {
+          // Defensive Cushion: Soft touch absorbs incoming velocity for control
+          isCushion = true;
+          rallyMultiplier *= 0.82;
+        }
+
+        // 6. Compute Final Outgoing Speed
+        let speed = (baseSpeed * rallyMultiplier) + rapidBonus + driveBonus;
+
+        // Ensure at least character's minimum strike force on forward hits
+        if (isDriveSmash && speed < char.strikeForce) {
+          speed = char.strikeForce + driveBonus * 0.5;
+        }
+
+        // Dynamic Max Speed Cap: Expands up to 24.5 km/h during intense rallies
+        const dynamicMaxSpeed = Math.min(this.puck.maxSpeed, 17.0 + Math.min(7.5, (this.rallyCount || 1) * 0.95));
+        speed = Math.min(dynamicMaxSpeed, Math.max(this.baseSpeed, speed));
+
+        // 7. Spin / Slice Angular Deflection
+        const sliceImpulse = paddleMoveVy * 0.38;
+        const outgoingVy = (speed * Math.sin(deflectAngle)) + sliceImpulse;
 
         this.puck.vx = (isP1 ? 1 : -1) * speed * Math.cos(deflectAngle);
-        this.puck.vy = speed * Math.sin(deflectAngle) + paddle.vy * 0.3;
-
+        this.puck.vy = outgoingVy;
         this.puck.lastHitBy = playerTag;
+
+        // Update Rally Heat (0 to 1)
+        this.rallyHeat = Math.min(1.0, Math.max(0, (this.rallyCount - 2) / 5));
+
         if (isP1) this.p1StrikeAnim = 1.0;
         else this.p2StrikeAnim = 1.0;
-        
-        if (momentumBonus > 1) {
+
+        // 8. Audio & Visual Feedback
+        if (this.rallyCount >= 3) {
+          soundFx.playRallyHit(this.rallyCount, speed / 12);
+        } else if (isDriveSmash) {
           soundFx.playHit(true, speed / 10);
-          effects.addHitSparks(this.puck.x, this.puck.y, isP1 ? 1 : -1, relY * 0.5, char.trailColor, true);
-          this.updateHitSpeedMeter(speed, `💥 İVMELİ VURUŞ!`);
         } else {
-          soundFx.playHit(false, 0.5);
-          effects.addHitSparks(this.puck.x, this.puck.y, isP1 ? 1 : -1, 0, char.trailColor, false);
-          this.updateHitSpeedMeter(speed);
+          soundFx.playHit(false, 0.55);
         }
+
+        // Dynamic sparks & effects
+        if (this.rallyCount >= 6) {
+          effects.addHitSparks(this.puck.x, this.puck.y, isP1 ? 1 : -1, relY * 0.5, '#ff0055', true);
+          effects.addHitSparks(this.puck.x, this.puck.y, isP1 ? 1 : -1, relY * 0.5, '#00ffff', true);
+        } else if (this.rallyCount >= 3 || isDriveSmash) {
+          effects.addHitSparks(this.puck.x, this.puck.y, isP1 ? 1 : -1, relY * 0.5, char.trailColor, true);
+        } else {
+          effects.addHitSparks(this.puck.x, this.puck.y, isP1 ? 1 : -1, 0, char.trailColor, false);
+        }
+
+        // Speed Meter & HUD Banner
+        let hitTag = '';
+        if (this.rallyCount >= 7) {
+          hitTag = `💥 HİPER RALLİ X${this.rallyCount} (${speed.toFixed(1)} km/h)!`;
+        } else if (this.rallyCount >= 5) {
+          hitTag = `⚡ SONİK RALLİ X${this.rallyCount} (${speed.toFixed(1)} km/h)!`;
+        } else if (this.rallyCount >= 3) {
+          hitTag = `🔥 ATEŞLİ RALLİ X${this.rallyCount} (${speed.toFixed(1)} km/h)!`;
+        } else if (isDriveSmash) {
+          hitTag = `💥 HÜCUM ŞUTU (${speed.toFixed(1)} km/h)!`;
+        } else if (isCushion) {
+          hitTag = `🛡️ YASTIKLAMA (${speed.toFixed(1)} km/h)`;
+        }
+        this.updateHitSpeedMeter(speed, hitTag);
 
       } else {
         if (this.puck.y < paddle.y) this.puck.y = pMinY - this.puck.radius;
@@ -1879,6 +2051,9 @@ class AvatarElementGame {
 
   updatePhysics() {
     this.animTime = (this.animTime || 0) + 0.04;
+    this.gameFrame = (this.gameFrame || 0) + 1;
+    if (this.screenShakeTimer > 0) this.screenShakeTimer--;
+
     if (this.p1StrikeAnim > 0) this.p1StrikeAnim = Math.max(0, this.p1StrikeAnim - 0.05);
     if (this.p2StrikeAnim > 0) this.p2StrikeAnim = Math.max(0, this.p2StrikeAnim - 0.05);
 
@@ -1903,11 +2078,19 @@ class AvatarElementGame {
       return;
     }
 
-    // Custom puck update: NO friction, speed normalizes to baseSpeed
+    // Decay rally count if no paddle hit for over 300 frames (5 seconds)
+    if (this.lastHitFrame && (this.gameFrame - this.lastHitFrame > 300)) {
+      this.rallyCount = 0;
+      this.rallyHeat = 0;
+    }
+
+    // Dynamic puck update: Dynamic decay based on rally heat
     this.puck.currentSpeed = Math.hypot(this.puck.vx, this.puck.vy);
     
+    // When in a heated rally, preserve momentum longer (decay rate 0.994 vs 0.985)
+    const decayRate = 0.985 + (this.rallyHeat || 0) * 0.009;
+    
     if (this.puck.currentSpeed > this.baseSpeed) {
-      const decayRate = 0.985;
       const targetSpeed = Math.max(this.baseSpeed, this.puck.currentSpeed * decayRate);
       const scale = targetSpeed / this.puck.currentSpeed;
       this.puck.vx *= scale;
@@ -1920,19 +2103,27 @@ class AvatarElementGame {
       this.puck.currentSpeed = this.baseSpeed;
     }
     
-    if (this.puck.currentSpeed > this.puck.maxSpeed) {
-      const scale = this.puck.maxSpeed / this.puck.currentSpeed;
+    const dynamicMax = Math.min(this.puck.maxSpeed, 17.0 + Math.min(7.5, (this.rallyCount || 1) * 0.95));
+    if (this.puck.currentSpeed > dynamicMax) {
+      const scale = dynamicMax / this.puck.currentSpeed;
       this.puck.vx *= scale;
       this.puck.vy *= scale;
-      this.puck.currentSpeed = this.puck.maxSpeed;
+      this.puck.currentSpeed = dynamicMax;
     }
     
-    this.puck.x += this.puck.vx;
-    this.puck.y += this.puck.vy;
+    // Anti-tunneling continuous collision sub-stepping for supersonic speeds
+    const subSteps = this.puck.currentSpeed > 15.0 ? 2 : 1;
+    const stepVx = this.puck.vx / subSteps;
+    const stepVy = this.puck.vy / subSteps;
 
-    // Paddle-Puck blocking
-    this.checkPaddlePuckBlock(this.p1, 'p1');
-    this.checkPaddlePuckBlock(this.p2, 'p2');
+    for (let s = 0; s < subSteps; s++) {
+      this.puck.x += stepVx;
+      this.puck.y += stepVy;
+
+      // Paddle-Puck blocking on each sub-step
+      this.checkPaddlePuckBlock(this.p1, 'p1');
+      this.checkPaddlePuckBlock(this.p2, 'p2');
+    }
 
     const border = this.table.border;
     const r = this.puck.radius;
@@ -2026,9 +2217,11 @@ class AvatarElementGame {
       effects.addGoalBurst(this.table.border, this.height / 2, charConfig.color);
     }
 
-    // Stop the ball immediately
+    // Stop the ball immediately and reset rally tracking
     this.puck.vx = 0;
     this.puck.vy = 0;
+    this.rallyCount = 0;
+    this.rallyHeat = 0;
 
     soundFx.playGoal();
     this.updateScoreDisplay();
@@ -2107,6 +2300,14 @@ class AvatarElementGame {
 
     ctx.save();
     const tokenR = 24;
+
+    // Apply Dynamic Inertia Tilt / Lean
+    const tilt = paddle.tiltAngle || 0;
+    if (tilt !== 0) {
+      ctx.translate(cx, cy);
+      ctx.rotate(tilt);
+      ctx.translate(-cx, -cy);
+    }
 
     // Outer glow aura
     ctx.shadowBlur = 18;
@@ -2733,6 +2934,12 @@ class AvatarElementGame {
     const b = this.table.border;
     ctx.clearRect(0, 0, this.width, this.height);
 
+    ctx.save();
+    if (this.screenShakeTimer > 0) {
+      const shakeMag = this.screenShakeTimer * 0.8;
+      ctx.translate((Math.random() - 0.5) * shakeMag, (Math.random() - 0.5) * shakeMag);
+    }
+
     // Map themes (Rich Aesthetics)
     const rinkW = this.width - b * 2;
     const rinkH = this.height - b * 2;
@@ -2956,6 +3163,59 @@ class AvatarElementGame {
       ctx.restore();
     }
 
+    // Dynamic Rally Heat Aura around puck (when rallyCount >= 3)
+    if (this.rallyCount >= 3) {
+      ctx.save();
+      const count = this.rallyCount;
+      const auraColor = count >= 7 ? '#ff0055' : (count >= 5 ? '#00f5ff' : '#ffaa00');
+      const strokeColor = count >= 7 ? '#ffe600' : (count >= 5 ? '#ffffff' : '#ff4400');
+
+      ctx.shadowBlur = Math.min(32, 16 + count * 2.2);
+      ctx.shadowColor = auraColor;
+      ctx.strokeStyle = strokeColor;
+      ctx.lineWidth = Math.min(4.5, 2.0 + count * 0.35);
+
+      const pulseR = this.puck.radius + 4 + Math.sin(t * (10 + count * 2)) * 3;
+      ctx.beginPath();
+      ctx.arc(this.puck.x, this.puck.y, pulseR, 0, Math.PI * 2);
+      ctx.stroke();
+
+      if (count >= 5) {
+        // Sonic shockwave ring
+        ctx.strokeStyle = auraColor;
+        ctx.lineWidth = 1.8;
+        const outerR = this.puck.radius + 10 + (Math.sin(t * 16) * 4);
+        ctx.beginPath();
+        ctx.arc(this.puck.x, this.puck.y, outerR, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      // Top Floating Rally Combo Badge
+      ctx.save();
+      const badgeY = 32;
+      const badgeText = count >= 7 ? `💥 HİPER RALLİ X${count}` : (count >= 5 ? `⚡ SONİK RALLİ X${count}` : `🔥 RALLİ X${count}`);
+      ctx.font = 'bold 15px Outfit, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      const tw = ctx.measureText(badgeText).width + 36;
+      ctx.fillStyle = 'rgba(14, 17, 29, 0.75)';
+      ctx.shadowBlur = 15;
+      ctx.shadowColor = auraColor;
+      ctx.strokeStyle = auraColor;
+      ctx.lineWidth = 1.5;
+
+      ctx.beginPath();
+      ctx.roundRect((this.width - tw) / 2, badgeY - 14, tw, 28, 14);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = strokeColor;
+      ctx.fillText(badgeText, this.width / 2, badgeY);
+      ctx.restore();
+    }
+
     // Serve indicator
     this.drawServeIndicator();
 
@@ -2980,6 +3240,9 @@ class AvatarElementGame {
       }
       ctx.restore();
     }
+
+    // Restore screen shake offset
+    ctx.restore();
   }
 
   updateChampionConfigs() {
@@ -3012,6 +3275,8 @@ class AvatarElementGame {
       serveReady: this.serveReady,
       goalScored: this.goalScored,
       winner: this.winner,
+      rallyCount: this.rallyCount || 0,
+      rallyHeat: this.rallyHeat || 0,
 
       // Ability Cooldowns & Timers
       p1AbilityCooldown: this.p1AbilityCooldown,
@@ -3147,6 +3412,9 @@ class AvatarElementGame {
     if (state.winner && !this.winner) {
       this.handleWin(state.winner);
     }
+
+    this.rallyCount = state.rallyCount || 0;
+    this.rallyHeat = state.rallyHeat || 0;
 
     // Ability Cooldowns & Timers
     this.p1AbilityCooldown = state.p1AbilityCooldown;

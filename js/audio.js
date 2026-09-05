@@ -181,6 +181,34 @@ class SoundManager {
     osc.start(now);
     osc.stop(now + 0.16);
   }
+
+  playRallyHit(rallyCount = 1, intensity = 1) {
+    if (!this.enabled) return;
+    this.init();
+    if (!this.ctx) return;
+
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    // Escalating pitch based on rally count
+    osc.type = rallyCount >= 4 ? 'triangle' : 'sine';
+    const baseFreq = 420 + Math.min(800, rallyCount * 75);
+    const endFreq = 220 + Math.min(400, rallyCount * 40);
+
+    osc.frequency.setValueAtTime(baseFreq, now);
+    osc.frequency.exponentialRampToValueAtTime(endFreq, now + 0.14);
+
+    const volume = Math.min(0.45, 0.18 + Math.min(0.25, rallyCount * 0.035) + intensity * 0.05);
+    gain.gain.setValueAtTime(volume, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.14);
+  }
 }
 
 const soundFx = new SoundManager();
