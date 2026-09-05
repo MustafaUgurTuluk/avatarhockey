@@ -1170,29 +1170,33 @@ class AvatarElementGame {
       // P2 faces left (-x), so puck behind P2 is (puck.x > paddle.x).
       const isBackHit = isP1 ? (this.puck.x < paddle.x) : (this.puck.x > paddle.x);
       if (isBackHit) {
+        const forwardSpeed = Math.max(9.5, Math.hypot(this.puck.vx, this.puck.vy) * 1.08);
+        const relY = (this.puck.y - paddle.y) / (paddle.height / 2);
+        const deflectAngle = relY * 0.45;
+
         if (isP1) {
           this.p1AbilityCooldown = char.abilityCooldown;
           this.p1Ability2Cooldown = char.ability2Cooldown;
           this.p1StunTimer = 50;
           this.p1.moveVx = 0;
           this.p1.moveVy = 0;
-          this.puck.x = pMinX - this.puck.radius;
-          this.puck.vx = -Math.abs(this.puck.vx || 6.0);
+          this.puck.x = pMaxX + this.puck.radius + 2;
+          this.puck.vx = forwardSpeed * Math.cos(deflectAngle);
         } else {
           this.p2AbilityCooldown = char.abilityCooldown;
           this.p2Ability2Cooldown = char.ability2Cooldown;
           this.p2StunTimer = 50;
           this.p2.moveVx = 0;
           this.p2.moveVy = 0;
-          this.puck.x = pMaxX + this.puck.radius;
-          this.puck.vx = Math.abs(this.puck.vx || 6.0);
+          this.puck.x = pMinX - this.puck.radius - 2;
+          this.puck.vx = -forwardSpeed * Math.cos(deflectAngle);
         }
-        this.puck.vy = (Math.random() - 0.5) * 4.0;
+        this.puck.vy = forwardSpeed * Math.sin(deflectAngle);
         this.puck.lastHitBy = playerTag;
         soundFx.playBonk();
-        effects.addHitSparks(this.puck.x, this.puck.y, isP1 ? -1 : 1, 0, '#ffff00', true);
+        effects.addHitSparks(this.puck.x, this.puck.y, isP1 ? 1 : -1, 0, '#ffff00', true);
         this.screenShakeTimer = 6;
-        this.updateHitSpeedMeter(0, isP1 ? '😵 P1 ARKADAN VURULDU! STUN & YETENEK SIFIRLANDI!' : '😵 P2 ARKADAN VURULDU! STUN & YETENEK SIFIRLANDI!');
+        this.updateHitSpeedMeter(forwardSpeed, isP1 ? '😵 P1 ARKADAN VURULDU! STUN & YETENEK SIFIRLANDI!' : '😵 P2 ARKADAN VURULDU! STUN & YETENEK SIFIRLANDI!');
         return;
       }
 
@@ -1651,8 +1655,8 @@ class AvatarElementGame {
 
       if (Math.abs(this.puck.x - centerX) < this.puck.radius + 12 && this.puck.y >= wallMinY - 10 && this.puck.y <= wallMaxY + 10) {
         // Boost puck speed just like passing over flames (fire map hazard)
-        this.puckFireBoostTimer = 120; // 2 seconds continuous flame boost!
-        const boostSpeed = 16.5;
+        this.puckFireBoostTimer = 140; // ~2.3 seconds continuous flame boost!
+        const boostSpeed = 19.5;
 
         // Bounce puck back to whichever side it came from (cannot cross wall)
         if (this.puck.x < centerX) {
@@ -1664,10 +1668,12 @@ class AvatarElementGame {
         }
 
         this.puck.lastHitBy = this.flameWallPlayer || (this.puck.x < centerX ? 'p2' : 'p1');
-        soundFx.playHit(true, 1.8);
+        soundFx.playHit(true, 2.0);
         soundFx.playWallHit();
+        soundFx.playBurn();
         effects.addHitSparks(this.puck.x, this.puck.y, this.puck.vx > 0 ? 1 : -1, 0, '#ff4400', true);
         effects.addHitSparks(this.puck.x, this.puck.y, this.puck.vx > 0 ? 1 : -1, 0, '#ffcc00', true);
+        this.screenShakeTimer = 8;
         this.updateHitSpeedMeter(boostSpeed, '🔥 ALEV DUVARI BOOSTU (SÜPER HIZLA SEKTİ)!');
       }
     }
@@ -1830,6 +1836,19 @@ class AvatarElementGame {
     }
 
     // Flame Boost: Maintain super speed while timer active (from Fire Map Hazard or Zuko Flame Wall)
+    if (this.puckFireBoostTimer > 0) {
+      this.puckFireBoostTimer--;
+      const currentSpeed = Math.hypot(this.puck.vx, this.puck.vy);
+      if (currentSpeed > 0 && currentSpeed < 18.5) {
+        const scale = 18.5 / currentSpeed;
+        this.puck.vx *= scale;
+        this.puck.vy *= scale;
+      }
+      if (Math.random() < 0.45) {
+        effects.addHitSparks(this.puck.x, this.puck.y, (Math.random() - 0.5), (Math.random() - 0.5), '#ff6600', false);
+      }
+    }
+
     // Aang Wind Catch Timers
     if (this.p1WindCatchActive) {
       this.p1WindCatchTimer--;
@@ -1871,15 +1890,22 @@ class AvatarElementGame {
           }
         }
 
-        // Check puck collision with flame patch
+        // Check puck collision with flame patch (Super Blazing Acceleration!)
         const dx = this.puck.x - this.fireFlameX;
         const dy = this.puck.y - this.fireFlameY;
         if (Math.hypot(dx, dy) < this.fireFlameRadius + this.puck.radius) {
-          this.puckFireBoostTimer = 120; // 2 seconds super speed boost
+          this.puckFireBoostTimer = 140; // ~2.3 seconds super speed boost
           this.fireFlameActive = false;
-          soundFx.playHit(true, 1.8);
-          effects.addHitSparks(this.puck.x, this.puck.y, 0, 0, '#ff6600', true);
-          this.updateHitSpeedMeter(16.0, '🔥 KIZGIN ALEV BOOSTU!');
+          const currentSpd = Math.hypot(this.puck.vx, this.puck.vy) || 1;
+          const boostedSpd = Math.min(22.0, Math.max(19.0, currentSpd * 1.5));
+          this.puck.vx = (this.puck.vx / currentSpd) * boostedSpd;
+          this.puck.vy = (this.puck.vy / currentSpd) * boostedSpd;
+          soundFx.playHit(true, 2.0);
+          soundFx.playBurn();
+          effects.addHitSparks(this.puck.x, this.puck.y, 0, 0, '#ff3300', true);
+          effects.addHitSparks(this.puck.x, this.puck.y, 0, 0, '#ffcc00', true);
+          this.screenShakeTimer = 8;
+          this.updateHitSpeedMeter(boostedSpd, '🔥 SÜPER ALEV BOOSTU (+%50 HIZ)!');
         }
       } else {
         if (!this.fireFlameTimer) this.fireFlameTimer = 300;
