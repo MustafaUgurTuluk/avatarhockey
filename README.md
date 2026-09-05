@@ -31,7 +31,7 @@ Her karakter kendine has kütle, ivmelenme, vuruş gücü ve iki aktif bükme ye
 ## 🏟️ Atmosferik Haritalar
 
 1. ❄️ **Buz Haritası (Kuzey Su Kabilesi)**: Zemin kaygandır; bükücüler buz üzerinde kayar (Katara hariç). Ortadan iki yana süpüren devasa buz dalgaları doğal okyanus dalgası sesiyle sahayı yarar.
-2. 🔥 **Ateş Haritası (Ateş Ulusu Başkenti)**: Zeminde volkanik yarık ve alev dilleri yükselir; üzerinden geçen top alev boostu alır, Zuko haricinde alevlere basan bükücüler anlık stun yer.
+2. 🔥 **Ateş Haritası (Ateş Ulusu Başkenti)**: Zeminde volkanik yarık ve alev dilleri yükselir; üzerinden geçen top alev boostu alır, Zuko haricinde alevlere basan bükücüler anlık stun yer (aynı alevde yalnızca 1 kez sersemler, alevin içinde kilitli kalmaz).
 3. 🌪️ **Hava Haritası (Güney Hava Tapınağı)**: Dinamik rüzgar akımları ve dönen hortum topu ve raketleri savurur.
 4. 🪨 **Toprak Haritası (Ba Sing Se)**: Ortadaki balçık alan raketleri yavaşlatır; zemindeki kaya parçaları topu sektirir.
 5. ⚡ **Fırtına Haritası (Yıldırım Zirvesi)**: Kenar bantları elektrik yüklüdür; banta çarpan top +%18 ivmelenir (Azula hariç).
@@ -43,7 +43,7 @@ Her karakter kendine has kütle, ivmelenme, vuruş gücü ve iki aktif bükme ye
 * **Kütle & Çekiş Fiziği (Grounded Weight)**: Karakterler basışta kütleye dayalı pürüzsüz ivmelenir, bırakışta 2-3 kare içinde kaymadan sağlam adımlarla durur. Hareket yönüne göre karakter hafifçe eğilir (tilt).
 * **Dengeli Hücum Şutu (Momentum Smash)**: Yalnızca anlık dokunmalar yerine karakter koşu ivmesini tam aldığında (%75+ hız) güçlü hücum şutu açığa çıkar; hafif dokunmalar kontrollü temas sağlar.
 * **Hızlı Hız Sönümlenmesi (Dynamic Decay)**: Top kazandığı aşırı hızı zamanla dengeli bir biçimde kaybeder, savunma oyuncularına stratejik reaksiyon payı tanır.
-* **Arkadan Vuruş Cezası & Stun (Back-Hit Penalty)**: Top bükücüye arkadan çarparsa yetenek barları tamamen sıfırlanır ve bükücü anlık sersemletme (stun) alır. Başının üstünde dönen yıldızlar belirir.
+* **Arkadan Vuruş Cezası & Tok Stun Sesi (Back-Hit Penalty & Muted Thud)**: Top bükücüye arkadan çarparsa yetenek barları tamamen sıfırlanır, top vurması gibi tok hafif bir sesle anlık sersemletme (stun) alır. Başının üstünde dönen yıldızlar belirir.
 * **Dengeli Yetenek Dolum Süreleri**: Yeteneklerin dolum süreleri taktiksel derinliği koruyacak şekilde optimize edilmiştir.
 * **Ardışık Ralli İvmesi & İleri Hücum Şartı (Rally Heat & Forward Drive)**: İki oyuncu topun üzerine doğru hareket ederek karşılıklı vuruş yaptıkça ralli katlanarak hızlanır; topun üzerine koşulmayan durumlarda (sabit durma veya geri çekilme) ralli sıfırlanır:
   * `🔥 ATEŞLİ RALLİ X3` (13 - 16 km/h)

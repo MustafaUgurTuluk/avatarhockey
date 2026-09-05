@@ -295,7 +295,7 @@ class SoundManager {
     osc.stop(now + 0.22);
   }
 
-  playBonk() {
+  playStunThud() {
     if (!this.enabled) return;
     this.init();
     if (!this.ctx) return;
@@ -304,18 +304,24 @@ class SoundManager {
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
 
-    osc.type = 'triangle';
-    osc.frequency.setValueAtTime(680, now);
-    osc.frequency.exponentialRampToValueAtTime(130, now + 0.28);
+    // Warm, muted sine wave for a soft, hollow puck contact ("tok")
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(260, now);
+    osc.frequency.exponentialRampToValueAtTime(68, now + 0.085);
 
-    gain.gain.setValueAtTime(0.38, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+    // Gentle, non-intrusive volume ("hafif")
+    gain.gain.setValueAtTime(0.24, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.085);
 
     osc.connect(gain);
     gain.connect(this.ctx.destination);
 
     osc.start(now);
-    osc.stop(now + 0.28);
+    osc.stop(now + 0.085);
+  }
+
+  playBonk() {
+    this.playStunThud();
   }
 }
 

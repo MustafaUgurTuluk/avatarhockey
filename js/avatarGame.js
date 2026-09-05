@@ -193,6 +193,8 @@ class AvatarElementGame {
     this.fireFlameY = 0;
     this.fireFlameRadius = 38;
     this.fireFlameDuration = 0;
+    this.fireFlameStunnedP1 = false;
+    this.fireFlameStunnedP2 = false;
     this.puckFireBoostTimer = 0;
     this.firePuckTrail = [];
 
@@ -445,6 +447,8 @@ class AvatarElementGame {
     this.p1EarthWallTimer = 0;
     this.p2EarthWallTimer = 0;
     this.fireFlameActive = false;
+    this.fireFlameStunnedP1 = false;
+    this.fireFlameStunnedP2 = false;
     this.puckFireBoostTimer = 0;
     this.firePuckTrail = [];
     this.fireFlameTimer = 200;
@@ -502,6 +506,8 @@ class AvatarElementGame {
     this.puck.isWhipped = null;
     this.puckFireBoostTimer = 0;
     this.firePuckTrail = [];
+    this.fireFlameStunnedP1 = false;
+    this.fireFlameStunnedP2 = false;
     effects.clearTrail();
     
     this.updateHitSpeedMeter(0);
@@ -1882,26 +1888,34 @@ class AvatarElementGame {
 
       if (this.fireFlameActive) {
         this.fireFlameDuration--;
-        if (this.fireFlameDuration <= 0) this.fireFlameActive = false;
+        if (this.fireFlameDuration <= 0) {
+          this.fireFlameActive = false;
+          this.fireFlameStunnedP1 = false;
+          this.fireFlameStunnedP2 = false;
+        }
 
-        // Check player collision with ground flame hazard (Zuko is immune!)
-        if (this.p1CharKey !== 'zuko' && this.p1StunTimer <= 0) {
+        // Check player collision with ground flame hazard (Zuko is immune, max 1 stun per flame instance!)
+        if (this.p1CharKey !== 'zuko' && !this.fireFlameStunnedP1 && this.p1StunTimer <= 0) {
           const p1Dist = Math.hypot(this.p1.x - this.fireFlameX, this.p1.y - this.fireFlameY);
           if (p1Dist < this.fireFlameRadius + this.p1.width / 2) {
             this.p1StunTimer = 55;
+            this.fireFlameStunnedP1 = true;
             this.p1.moveVx = 0;
             this.p1.moveVy = 0;
+            soundFx.playStunThud();
             soundFx.playBurn();
             effects.addHitSparks(this.p1.x, this.p1.y, 0, -1, '#ff3300', true);
             this.updateHitSpeedMeter(0, '🔥 P1 ALEVLERE BASTI VE YANDI (STUN)!');
           }
         }
-        if (this.p2CharKey !== 'zuko' && this.p2StunTimer <= 0) {
+        if (this.p2CharKey !== 'zuko' && !this.fireFlameStunnedP2 && this.p2StunTimer <= 0) {
           const p2Dist = Math.hypot(this.p2.x - this.fireFlameX, this.p2.y - this.fireFlameY);
           if (p2Dist < this.fireFlameRadius + this.p2.width / 2) {
             this.p2StunTimer = 55;
+            this.fireFlameStunnedP2 = true;
             this.p2.moveVx = 0;
             this.p2.moveVy = 0;
+            soundFx.playStunThud();
             soundFx.playBurn();
             effects.addHitSparks(this.p2.x, this.p2.y, 0, -1, '#ff3300', true);
             this.updateHitSpeedMeter(0, '🔥 P2 ALEVLERE BASTI VE YANDI (STUN)!');
@@ -1914,6 +1928,8 @@ class AvatarElementGame {
         if (Math.hypot(dx, dy) < this.fireFlameRadius + this.puck.radius) {
           this.puckFireBoostTimer = 160; // ~2.7 seconds super speed boost
           this.fireFlameActive = false;
+          this.fireFlameStunnedP1 = false;
+          this.fireFlameStunnedP2 = false;
           const currentSpd = Math.hypot(this.puck.vx, this.puck.vy) || 1;
           const boostedSpd = Math.min(24.5, Math.max(22.5, currentSpd * 1.65));
           this.puck.vx = (this.puck.vx / currentSpd) * boostedSpd;
@@ -1935,6 +1951,8 @@ class AvatarElementGame {
           this.fireFlameRadius = 38;
           this.fireFlameDuration = 360; // 6 seconds
           this.fireFlameActive = true;
+          this.fireFlameStunnedP1 = false;
+          this.fireFlameStunnedP2 = false;
           this.fireFlameTimer = 400 + Math.random() * 200;
         }
       }
