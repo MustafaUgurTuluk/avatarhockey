@@ -209,6 +209,114 @@ class SoundManager {
     osc.start(now);
     osc.stop(now + 0.14);
   }
+
+  playOceanWave() {
+    if (!this.enabled) return;
+    this.init();
+    if (!this.ctx) return;
+
+    const now = this.ctx.currentTime;
+    const duration = 2.4;
+
+    // 1. Noise buffer for rushing ocean surf & foaming water
+    const bufferSize = Math.floor(this.ctx.sampleRate * duration);
+    const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const output = noiseBuffer.getChannelData(0);
+    let b0 = 0, b1 = 0, b2 = 0;
+    for (let i = 0; i < bufferSize; i++) {
+      const white = Math.random() * 2 - 1;
+      b0 = 0.99886 * b0 + white * 0.0555179;
+      b1 = 0.99332 * b1 + white * 0.0750759;
+      b2 = 0.96900 * b2 + white * 0.1538520;
+      output[i] = (b0 + b1 + b2 + white * 0.5362) * 0.16;
+    }
+
+    const whiteNoise = this.ctx.createBufferSource();
+    whiteNoise.buffer = noiseBuffer;
+
+    // 2. Sweeping Low-Pass Filter simulating incoming and crashing wave crest
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.Q.setValueAtTime(2.2, now);
+    filter.frequency.setValueAtTime(140, now);
+    filter.frequency.exponentialRampToValueAtTime(780, now + 0.7);
+    filter.frequency.exponentialRampToValueAtTime(320, now + 1.5);
+    filter.frequency.exponentialRampToValueAtTime(70, now + duration);
+
+    // 3. Amplitude Envelope: gradual swell -> crest -> gentle trailing wash
+    const gainNode = this.ctx.createGain();
+    gainNode.gain.setValueAtTime(0.001, now);
+    gainNode.gain.exponentialRampToValueAtTime(0.42, now + 0.65);
+    gainNode.gain.exponentialRampToValueAtTime(0.24, now + 1.2);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+    whiteNoise.connect(filter);
+    filter.connect(gainNode);
+    gainNode.connect(this.ctx.destination);
+
+    // 4. Sub-bass ocean water undertow rumble
+    const subOsc = this.ctx.createOscillator();
+    const subGain = this.ctx.createGain();
+    subOsc.type = 'sine';
+    subOsc.frequency.setValueAtTime(65, now);
+    subOsc.frequency.exponentialRampToValueAtTime(40, now + 1.5);
+    subGain.gain.setValueAtTime(0.001, now);
+    subGain.gain.exponentialRampToValueAtTime(0.24, now + 0.55);
+    subGain.gain.exponentialRampToValueAtTime(0.001, now + 1.7);
+
+    subOsc.connect(subGain);
+    subGain.connect(this.ctx.destination);
+
+    whiteNoise.start(now);
+    subOsc.start(now);
+    subOsc.stop(now + 1.7);
+  }
+
+  playBurn() {
+    if (!this.enabled) return;
+    this.init();
+    if (!this.ctx) return;
+
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(520, now);
+    osc.frequency.exponentialRampToValueAtTime(110, now + 0.22);
+
+    gain.gain.setValueAtTime(0.26, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.22);
+  }
+
+  playBonk() {
+    if (!this.enabled) return;
+    this.init();
+    if (!this.ctx) return;
+
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(680, now);
+    osc.frequency.exponentialRampToValueAtTime(130, now + 0.28);
+
+    gain.gain.setValueAtTime(0.38, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.28);
+  }
 }
 
 const soundFx = new SoundManager();

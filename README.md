@@ -30,22 +30,25 @@ Her karakter kendine has kütle, ivmelenme, vuruş gücü ve iki aktif bükme ye
 
 ## 🏟️ Atmosferik Haritalar
 
-1. ❄️ **Buz Haritası (Kuzey Su Kabilesi)**: Zemin kaygandır; bükücüler buz üzerinde kayar (Katara hariç).
-2. 🔥 **Ateş Haritası (Ateş Ulusu Başkenti)**: Ortada kızgın lav tehlikesi bulunur; üzerinden geçen top alev boostu alır.
+1. ❄️ **Buz Haritası (Kuzey Su Kabilesi)**: Zemin kaygandır; bükücüler buz üzerinde kayar (Katara hariç). Ortadan iki yana süpüren devasa buz dalgaları doğal okyanus dalgası sesiyle sahayı yarar.
+2. 🔥 **Ateş Haritası (Ateş Ulusu Başkenti)**: Zeminde volkanik yarık ve alev dilleri yükselir; üzerinden geçen top alev boostu alır, Zuko haricinde alevlere basan bükücüler anlık stun yer.
 3. 🌪️ **Hava Haritası (Güney Hava Tapınağı)**: Dinamik rüzgar akımları ve dönen hortum topu ve raketleri savurur.
 4. 🪨 **Toprak Haritası (Ba Sing Se)**: Ortadaki balçık alan raketleri yavaşlatır; zemindeki kaya parçaları topu sektirir.
 5. ⚡ **Fırtına Haritası (Yıldırım Zirvesi)**: Kenar bantları elektrik yüklüdür; banta çarpan top +%18 ivmelenir (Azula hariç).
 
 ---
 
-## ⚙️ Fizik & Oynanış Dinamikleri
+## ⚙️ Fizik & Oynanış Dinamikleri (Version 2.0)
 
 * **Kütle & Çekiş Fiziği (Grounded Weight)**: Karakterler basışta kütleye dayalı pürüzsüz ivmelenir, bırakışta 2-3 kare içinde kaymadan sağlam adımlarla durur. Hareket yönüne göre karakter hafifçe eğilir (tilt).
+* **Dengeli Hücum Şutu (Momentum Smash)**: Yalnızca anlık dokunmalar yerine karakter koşu ivmesini tam aldığında (%75+ hız) güçlü hücum şutu açığa çıkar; hafif dokunmalar kontrollü temas sağlar.
+* **Hızlı Hız Sönümlenmesi (Dynamic Decay)**: Top kazandığı aşırı hızı zamanla dengeli bir biçimde kaybeder, savunma oyuncularına stratejik reaksiyon payı tanır.
+* **Arkadan Vuruş Cezası & Stun (Back-Hit Penalty)**: Top bükücüye arkadan çarparsa yetenek barları tamamen sıfırlanır ve bükücü anlık sersemletme (stun) alır. Başının üstünde dönen yıldızlar belirir.
+* **Dengeli Yetenek Dolum Süreleri**: Yeteneklerin dolum süreleri taktiksel derinliği koruyacak şekilde optimize edilmiştir.
 * **Ardışık Ralli İvmesi (Rally Heat)**: İki oyuncu arasında hızlı paslaşmalar devam ettikçe her vuruşta top katlanarak hızlanır:
   * `🔥 ATEŞLİ RALLİ X3` (13 - 16 km/h)
   * `⚡ SONİK RALLİ X5` (16 - 19 km/h)
-  * `💥 HİPER RALLİ X7+` (20 - 24.5 km/h)
-* **Hücum Şutu (Smash)**: İleri koşarken topa vurulduğunda raketin momentumu topa aktarılır.
+  * `💥 HİPER RALLİ X7+` (20 - 21.5 km/h)
 * **Yastıklama (Defensive Cushion)**: Geri çekilirken vurulduğunda top yumuşatılır ve kontrol altına alınır.
 * **Falso & Açı Saptırma (Spin & Slice)**: Dikey hareket halindeyken vurulduğunda falso ve kesme açısı verilir.
 

@@ -47,10 +47,10 @@ class AvatarElementGame {
         trailColor: '#ff4400',
         abilityName: 'Ateş Topu',
         abilityDesc: 'Herhangi bir yerden topa ateş topu fırlatarak müdahale eder.',
-        abilityCooldown: 300,
+        abilityCooldown: 350,
         ability2Name: 'Alev Duvarı',
         ability2Desc: 'Orta çizgide topu geri sektiren ve hızlandıran alevden duvar örer.',
-        ability2Cooldown: 420
+        ability2Cooldown: 490
       },
       katara: {
         id: 'katara', name: 'Katara', element: 'Su',
@@ -60,10 +60,10 @@ class AvatarElementGame {
         trailColor: '#00ccff',
         abilityName: 'Buz Hunisi Duvarı',
         abilityDesc: 'Rakip kaleye buz fırlatır. Bloklanamazsa 7sn boyunca kalede topu içeri yönlendiren buz hunisi oluşur.',
-        abilityCooldown: 360,
+        abilityCooldown: 420,
         ability2Name: 'Su Kırbacı',
         ability2Desc: 'İleriye doğru su kırbacı savurur, topu fırlatır ve rakibi 3sn dondurur.',
-        ability2Cooldown: 300
+        ability2Cooldown: 350
       },
       aang: {
         id: 'aang', name: 'Aang', element: 'Hava',
@@ -73,10 +73,10 @@ class AvatarElementGame {
         trailColor: '#00ffcc',
         abilityName: 'Rüzgar Çekimi & Fırlatma',
         abilityDesc: 'Yakınına gelen topu havayla çekip yakalar ve rakibe doğru süper hızla fırlatır.',
-        abilityCooldown: 420,
+        abilityCooldown: 490,
         ability2Name: 'Hava Işınlanması',
         ability2Desc: 'Anında kendi kalesinin önüne ışınlanır ve rüzgar dalgası saçar.',
-        ability2Cooldown: 360
+        ability2Cooldown: 420
       },
       toph: {
         id: 'toph', name: 'Toph', element: 'Toprak',
@@ -86,10 +86,10 @@ class AvatarElementGame {
         trailColor: '#ffaa00',
         abilityName: 'Kaya Duvarı',
         abilityDesc: 'Kale ağzına kısa süreliğine kaya duvarı örer.',
-        abilityCooldown: 330,
+        abilityCooldown: 380,
         ability2Name: 'Kaya Fırlatma',
         ability2Desc: 'Menzilli kaya fırlatır; rakibe değerse geri iter, menzili bitince zeminde engel olarak kalır.',
-        ability2Cooldown: 330
+        ability2Cooldown: 380
       },
       azula: {
         id: 'azula', name: 'Azula', element: 'Yıldırım',
@@ -99,10 +99,10 @@ class AvatarElementGame {
         trailColor: '#d8b4fe',
         abilityName: 'Yıldırım Oku',
         abilityDesc: 'Topa saf yıldırım fırlatarak elektrik yükler; top zikzak yaparak süper hızla uçar.',
-        abilityCooldown: 330,
+        abilityCooldown: 380,
         ability2Name: 'Statik Şok Dalgası',
         ability2Desc: 'Önündeki alana şok dalgası yayar; topu savurur ve rakibi 1.5sn elektriksel titreşime sokar.',
-        ability2Cooldown: 390
+        ability2Cooldown: 450
       }
     };
 
@@ -128,6 +128,10 @@ class AvatarElementGame {
     this.p1FreezeTimer = 0;
     this.p2FreezeTimer = 0;
     this.FREEZE_DURATION = 180; // 3.0 seconds (180 frames at 60fps)
+
+    // Stun state (Back-hit & Fire Hazard stun)
+    this.p1StunTimer = 0;
+    this.p2StunTimer = 0;
 
     // Zuko: Flame Wall
     this.flameWallActive = false;
@@ -432,6 +436,8 @@ class AvatarElementGame {
     this.staticPulses = [];
     this.p1FreezeTimer = 0;
     this.p2FreezeTimer = 0;
+    this.p1StunTimer = 0;
+    this.p2StunTimer = 0;
     this.p1ShockTimer = 0;
     this.p2ShockTimer = 0;
     this.puckLightningBoostTimer = 0;
@@ -474,6 +480,8 @@ class AvatarElementGame {
     
     this.p1.reset();
     this.p2.reset();
+    this.p1StunTimer = 0;
+    this.p2StunTimer = 0;
     this.rallyCount = 0;
     this.rallyHeat = 0;
     this.lastHitFrame = 0;
@@ -549,8 +557,10 @@ class AvatarElementGame {
     const charKey = isP1 ? this.p1CharKey : this.p2CharKey;
     const char = this.champions[charKey];
     const cooldown = isP1 ? this.p1AbilityCooldown : this.p2AbilityCooldown;
+    const freezeTimer = isP1 ? this.p1FreezeTimer : this.p2FreezeTimer;
+    const stunTimer = isP1 ? this.p1StunTimer : this.p2StunTimer;
 
-    if (cooldown > 0) return;
+    if (cooldown > 0 || freezeTimer > 0 || stunTimer > 0) return;
 
     if (isP1) {
       this.p1AbilityCooldown = char.abilityCooldown;
@@ -642,8 +652,10 @@ class AvatarElementGame {
     const charKey = isP1 ? this.p1CharKey : this.p2CharKey;
     const char = this.champions[charKey];
     const cooldown = isP1 ? this.p1AbilityCooldown : this.p2AbilityCooldown;
+    const freezeTimer = isP1 ? this.p1FreezeTimer : this.p2FreezeTimer;
+    const stunTimer = isP1 ? this.p1StunTimer : this.p2StunTimer;
 
-    if (cooldown > 0) return;
+    if (cooldown > 0 || freezeTimer > 0 || stunTimer > 0) return;
 
     if (isP1) {
       this.p1StrikeAnim = 1.0;
@@ -769,9 +781,10 @@ class AvatarElementGame {
     const applyMovement = (player, charKey, isP1, forceDx = null, forceDy = null) => {
       let inputDx = 0, inputDy = 0;
       const freezeTimer = isP1 ? this.p1FreezeTimer : this.p2FreezeTimer;
+      const stunTimer = isP1 ? this.p1StunTimer : this.p2StunTimer;
       const char = this.champions[charKey];
       
-      if (freezeTimer <= 0) {
+      if (freezeTimer <= 0 && stunTimer <= 0) {
         if (forceDx !== null && forceDy !== null) {
           inputDx = forceDx; inputDy = forceDy; // AI movement
         } else {
@@ -798,6 +811,14 @@ class AvatarElementGame {
       if (player.moveVx === undefined) player.moveVx = 0;
       if (player.moveVy === undefined) player.moveVy = 0;
       if (player.tiltAngle === undefined) player.tiltAngle = 0;
+
+      // Stun momentum brake
+      if (stunTimer > 0) {
+        player.moveVx *= 0.4;
+        player.moveVy *= 0.4;
+        if (Math.abs(player.moveVx) < 0.1) player.moveVx = 0;
+        if (Math.abs(player.moveVy) < 0.1) player.moveVy = 0;
+      }
 
       let dx = 0, dy = 0;
 
@@ -866,13 +887,13 @@ class AvatarElementGame {
       const targetTilt = (player.moveVx / char.moveSpeed) * (isP1 ? 0.08 : -0.08);
       player.tiltAngle = (player.tiltAngle || 0) + (targetTilt - (player.tiltAngle || 0)) * 0.25;
 
-      // Static Shock Jitter Disruption (when hit by Azula's shockwave or lightning)
+      // Static Shock & Stun Jitter Disruption
       const shockTimer = isP1 ? this.p1ShockTimer : this.p2ShockTimer;
-      if (shockTimer > 0 && freezeTimer <= 0) {
-        dx += (Math.random() - 0.5) * 3.2;
-        dy += (Math.random() - 0.5) * 3.2;
+      if ((shockTimer > 0 || stunTimer > 0) && freezeTimer <= 0) {
+        dx += (Math.random() - 0.5) * 2.8;
+        dy += (Math.random() - 0.5) * 2.8;
         if (Math.random() < 0.22) {
-          effects.addHitSparks(player.x, player.y, (Math.random() - 0.5), (Math.random() - 0.5), '#a855f7', false);
+          effects.addHitSparks(player.x, player.y, (Math.random() - 0.5), (Math.random() - 0.5), stunTimer > 0 ? '#ffea00' : '#a855f7', false);
         }
       }
 
@@ -1083,7 +1104,7 @@ class AvatarElementGame {
 
   updateAiBot(charKey, applyMovement) {
     const char = this.champions[charKey];
-    if (this.p2FreezeTimer > 0) return; 
+    if (this.p2FreezeTimer > 0 || this.p2StunTimer > 0) return; 
     
     const aiSpeed = char.moveSpeed * 0.82;
     let targetY = this.puck.y;
@@ -1143,6 +1164,37 @@ class AvatarElementGame {
       const isP1 = playerTag === 'p1';
       const charKey = isP1 ? this.p1CharKey : this.p2CharKey;
       const char = this.champions[charKey];
+
+      // Back-hit penalty check: Puck hits player from behind!
+      // P1 faces right (+x), so puck behind P1 is (puck.x < paddle.x).
+      // P2 faces left (-x), so puck behind P2 is (puck.x > paddle.x).
+      const isBackHit = isP1 ? (this.puck.x < paddle.x) : (this.puck.x > paddle.x);
+      if (isBackHit) {
+        if (isP1) {
+          this.p1AbilityCooldown = char.abilityCooldown;
+          this.p1Ability2Cooldown = char.ability2Cooldown;
+          this.p1StunTimer = 50;
+          this.p1.moveVx = 0;
+          this.p1.moveVy = 0;
+          this.puck.x = pMinX - this.puck.radius;
+          this.puck.vx = -Math.abs(this.puck.vx || 6.0);
+        } else {
+          this.p2AbilityCooldown = char.abilityCooldown;
+          this.p2Ability2Cooldown = char.ability2Cooldown;
+          this.p2StunTimer = 50;
+          this.p2.moveVx = 0;
+          this.p2.moveVy = 0;
+          this.puck.x = pMaxX + this.puck.radius;
+          this.puck.vx = Math.abs(this.puck.vx || 6.0);
+        }
+        this.puck.vy = (Math.random() - 0.5) * 4.0;
+        this.puck.lastHitBy = playerTag;
+        soundFx.playBonk();
+        effects.addHitSparks(this.puck.x, this.puck.y, isP1 ? -1 : 1, 0, '#ffff00', true);
+        this.screenShakeTimer = 6;
+        this.updateHitSpeedMeter(0, isP1 ? '😵 P1 ARKADAN VURULDU! STUN & YETENEK SIFIRLANDI!' : '😵 P2 ARKADAN VURULDU! STUN & YETENEK SIFIRLANDI!');
+        return;
+      }
 
       // Water Whip freeze check: If puck was struck by Katara's whip, freeze the opponent upon contact!
       if (this.puck.isWhipped) {
@@ -1223,21 +1275,26 @@ class AvatarElementGame {
         const movingForward = isP1 ? paddleMoveVx > 0.35 : paddleMoveVx < -0.35;
         const movingBackward = isP1 ? paddleMoveVx < -0.4 : paddleMoveVx > 0.4;
         const forwardSpeed = Math.abs(paddleMoveVx);
+        const forwardRatio = forwardSpeed / char.moveSpeed;
 
         let driveBonus = 0;
         let isDriveSmash = false;
         let isCushion = false;
 
         if (movingForward) {
-          // Offensive Drive: Paddle momentum transferred directly into puck
-          driveBonus = forwardSpeed * 1.75;
-          isDriveSmash = true;
+          // Require character to build full forward momentum (at least 75% max speed) for powerful smash
+          if (forwardRatio >= 0.75) {
+            driveBonus = forwardSpeed * 1.45;
+            isDriveSmash = true;
 
-          // Extra explosive impact if player triggered strike animation
-          const strikeActive = isP1 ? this.p1StrikeAnim > 0.25 : this.p2StrikeAnim > 0.25;
-          if (strikeActive) {
-            driveBonus += 3.2;
-            this.screenShakeTimer = 8;
+            const strikeActive = isP1 ? this.p1StrikeAnim > 0.25 : this.p2StrikeAnim > 0.25;
+            if (strikeActive) {
+              driveBonus += 2.4;
+              this.screenShakeTimer = 7;
+            }
+          } else {
+            // Balanced contact bonus if tapping forward without building full run momentum
+            driveBonus = forwardSpeed * 0.35;
           }
         } else if (movingBackward) {
           // Defensive Cushion: Soft touch absorbs incoming velocity for control
@@ -1248,13 +1305,13 @@ class AvatarElementGame {
         // 6. Compute Final Outgoing Speed
         let speed = (baseSpeed * rallyMultiplier) + rapidBonus + driveBonus;
 
-        // Ensure at least character's minimum strike force on forward hits
+        // Ensure at least character's minimum strike force on full forward smashes
         if (isDriveSmash && speed < char.strikeForce) {
-          speed = char.strikeForce + driveBonus * 0.5;
+          speed = char.strikeForce + driveBonus * 0.3;
         }
 
-        // Dynamic Max Speed Cap: Expands up to 24.5 km/h during intense rallies
-        const dynamicMaxSpeed = Math.min(this.puck.maxSpeed, 17.0 + Math.min(7.5, (this.rallyCount || 1) * 0.95));
+        // Dynamic Max Speed Cap: Capped at balanced 21.5 km/h
+        const dynamicMaxSpeed = Math.min(21.5, 15.0 + Math.min(6.5, (this.rallyCount || 1) * 0.7));
         speed = Math.min(dynamicMaxSpeed, Math.max(this.baseSpeed, speed));
 
         // 7. Spin / Slice Angular Deflection
@@ -1391,6 +1448,10 @@ class AvatarElementGame {
     // Freeze timers
     if (this.p1FreezeTimer > 0) this.p1FreezeTimer--;
     if (this.p2FreezeTimer > 0) this.p2FreezeTimer--;
+
+    // Stun timers
+    if (this.p1StunTimer > 0) this.p1StunTimer--;
+    if (this.p2StunTimer > 0) this.p2StunTimer--;
 
     // Shock timers (Azula electrical static disruption)
     if (this.p1ShockTimer > 0) this.p1ShockTimer--;
@@ -1769,13 +1830,14 @@ class AvatarElementGame {
     }
 
     // Flame Boost: Maintain super speed while timer active (from Fire Map Hazard or Zuko Flame Wall)
-    if (this.puckFireBoostTimer > 0) {
-      this.puckFireBoostTimer--;
-      const currentSpeed = Math.hypot(this.puck.vx, this.puck.vy);
-      if (currentSpeed > 0) {
-        this.puck.vx = (this.puck.vx / currentSpeed) * 16.0;
-        this.puck.vy = (this.puck.vy / currentSpeed) * 16.0;
-      }
+    // Aang Wind Catch Timers
+    if (this.p1WindCatchActive) {
+      this.p1WindCatchTimer--;
+      if (this.p1WindCatchTimer <= 0) this.p1WindCatchActive = false;
+    }
+    if (this.p2WindCatchActive) {
+      this.p2WindCatchTimer--;
+      if (this.p2WindCatchTimer <= 0) this.p2WindCatchActive = false;
     }
 
     // Fire Map Hazard: Flame Patch & Puck Speed Boost
@@ -1784,6 +1846,30 @@ class AvatarElementGame {
       if (this.fireFlameActive) {
         this.fireFlameDuration--;
         if (this.fireFlameDuration <= 0) this.fireFlameActive = false;
+
+        // Check player collision with ground flame hazard (Zuko is immune!)
+        if (this.p1CharKey !== 'zuko' && this.p1StunTimer <= 0) {
+          const p1Dist = Math.hypot(this.p1.x - this.fireFlameX, this.p1.y - this.fireFlameY);
+          if (p1Dist < this.fireFlameRadius + this.p1.width / 2) {
+            this.p1StunTimer = 55;
+            this.p1.moveVx = 0;
+            this.p1.moveVy = 0;
+            soundFx.playBurn();
+            effects.addHitSparks(this.p1.x, this.p1.y, 0, -1, '#ff3300', true);
+            this.updateHitSpeedMeter(0, '🔥 P1 ALEVLERE BASTI VE YANDI (STUN)!');
+          }
+        }
+        if (this.p2CharKey !== 'zuko' && this.p2StunTimer <= 0) {
+          const p2Dist = Math.hypot(this.p2.x - this.fireFlameX, this.p2.y - this.fireFlameY);
+          if (p2Dist < this.fireFlameRadius + this.p2.width / 2) {
+            this.p2StunTimer = 55;
+            this.p2.moveVx = 0;
+            this.p2.moveVy = 0;
+            soundFx.playBurn();
+            effects.addHitSparks(this.p2.x, this.p2.y, 0, -1, '#ff3300', true);
+            this.updateHitSpeedMeter(0, '🔥 P2 ALEVLERE BASTI VE YANDI (STUN)!');
+          }
+        }
 
         // Check puck collision with flame patch
         const dx = this.puck.x - this.fireFlameX;
@@ -1850,7 +1936,7 @@ class AvatarElementGame {
           this.iceWaveXLeft = this.width / 2;
           this.iceWaveXRight = this.width / 2;
           this.iceWaveTimer = 550 + Math.random() * 200;
-          soundFx.playHit(true, 1.4);
+          soundFx.playOceanWave();
         }
       }
     }
@@ -2087,8 +2173,8 @@ class AvatarElementGame {
     // Dynamic puck update: Dynamic decay based on rally heat
     this.puck.currentSpeed = Math.hypot(this.puck.vx, this.puck.vy);
     
-    // When in a heated rally, preserve momentum longer (decay rate 0.994 vs 0.985)
-    const decayRate = 0.985 + (this.rallyHeat || 0) * 0.009;
+    // When in a heated rally, preserve momentum longer, but decay faster overall for balanced reaction windows
+    const decayRate = 0.972 + (this.rallyHeat || 0) * 0.008;
     
     if (this.puck.currentSpeed > this.baseSpeed) {
       const targetSpeed = Math.max(this.baseSpeed, this.puck.currentSpeed * decayRate);
@@ -2103,7 +2189,7 @@ class AvatarElementGame {
       this.puck.currentSpeed = this.baseSpeed;
     }
     
-    const dynamicMax = Math.min(this.puck.maxSpeed, 17.0 + Math.min(7.5, (this.rallyCount || 1) * 0.95));
+    const dynamicMax = Math.min(21.5, 15.0 + Math.min(6.5, (this.rallyCount || 1) * 0.7));
     if (this.puck.currentSpeed > dynamicMax) {
       const scale = dynamicMax / this.puck.currentSpeed;
       this.puck.vx *= scale;
@@ -2291,9 +2377,10 @@ class AvatarElementGame {
 
     const isFrozen = isP1 ? this.p1FreezeTimer > 0 : this.p2FreezeTimer > 0;
     const isShocked = isP1 ? this.p1ShockTimer > 0 : this.p2ShockTimer > 0;
+    const isStunned = isP1 ? this.p1StunTimer > 0 : this.p2StunTimer > 0;
 
-    // High-voltage shock jitter displacement
-    if (isShocked) {
+    // High-voltage shock or stun jitter displacement
+    if (isShocked || isStunned) {
       cx += (Math.random() - 0.5) * 3.5;
       cy += (Math.random() - 0.5) * 3.5;
     }
@@ -2468,6 +2555,34 @@ class AvatarElementGame {
       ctx.arc(paddle.x, paddle.y, paddle.height / 2 + 15, 0, Math.PI * 2);
       ctx.stroke();
       ctx.setLineDash([]);
+    }
+
+    // Stunned dizzy stars effect
+    if (isStunned) {
+      ctx.save();
+      const starCount = 3;
+      const starRadius = tokenR + 8;
+      const starCenterY = cy - tokenR * 0.75;
+      for (let i = 0; i < starCount; i++) {
+        const starAng = t * 6.5 + i * ((Math.PI * 2) / starCount);
+        const sx = cx + Math.cos(starAng) * (starRadius * 0.75);
+        const sy = starCenterY + Math.sin(starAng) * 6;
+        ctx.fillStyle = '#ffea00';
+        ctx.shadowColor = '#ffff55';
+        ctx.shadowBlur = 9;
+        ctx.beginPath();
+        // 4-pointed star
+        ctx.moveTo(sx, sy - 5);
+        ctx.lineTo(sx + 2, sy - 1);
+        ctx.lineTo(sx + 5, sy);
+        ctx.lineTo(sx + 2, sy + 1);
+        ctx.moveTo(sx, sy + 5);
+        ctx.lineTo(sx - 2, sy + 1);
+        ctx.lineTo(sx - 5, sy);
+        ctx.lineTo(sx - 2, sy - 1);
+        ctx.fill();
+      }
+      ctx.restore();
     }
 
     ctx.restore();
@@ -3285,6 +3400,8 @@ class AvatarElementGame {
       p2Ability2Cooldown: this.p2Ability2Cooldown,
       p1FreezeTimer: this.p1FreezeTimer,
       p2FreezeTimer: this.p2FreezeTimer,
+      p1StunTimer: this.p1StunTimer,
+      p2StunTimer: this.p2StunTimer,
       p1IceFunnelTimer: this.p1IceFunnelTimer,
       p2IceFunnelTimer: this.p2IceFunnelTimer,
       p1EarthWallTimer: this.p1EarthWallTimer,
@@ -3423,6 +3540,8 @@ class AvatarElementGame {
     this.p2Ability2Cooldown = state.p2Ability2Cooldown;
     this.p1FreezeTimer = state.p1FreezeTimer;
     this.p2FreezeTimer = state.p2FreezeTimer;
+    this.p1StunTimer = state.p1StunTimer || 0;
+    this.p2StunTimer = state.p2StunTimer || 0;
     this.p1IceFunnelTimer = state.p1IceFunnelTimer;
     this.p2IceFunnelTimer = state.p2IceFunnelTimer;
     this.p1EarthWallTimer = state.p1EarthWallTimer;
@@ -3507,33 +3626,129 @@ class AvatarElementGame {
     const ctx = this.ctx;
     const t = Date.now() / 1000;
 
-    // Fire Map: Flame Patch Eruption
+    // Fire Map: Volcanic Ground Flame Eruption
     if (this.selectedMap === 'fire' && this.fireFlameActive) {
       ctx.save();
-      const pulse = 0.8 + Math.sin(t * 8) * 0.2;
-      ctx.fillStyle = 'rgba(255, 68, 0, 0.4)';
-      ctx.shadowBlur = 20;
-      ctx.shadowColor = '#ff3300';
+      const fx = this.fireFlameX;
+      const fy = this.fireFlameY;
+      const r = this.fireFlameRadius;
+      const pulse = 0.9 + Math.sin(t * 7) * 0.1;
+
+      // 1. Ground Heat Aura / Scorched Floor Glow
+      const groundGlow = ctx.createRadialGradient(fx, fy, 5, fx, fy, r * 1.55);
+      groundGlow.addColorStop(0, 'rgba(255, 80, 0, 0.45)');
+      groundGlow.addColorStop(0.5, 'rgba(255, 30, 0, 0.22)');
+      groundGlow.addColorStop(1, 'rgba(20, 0, 0, 0)');
+      ctx.fillStyle = groundGlow;
       ctx.beginPath();
-      ctx.arc(this.fireFlameX, this.fireFlameY, this.fireFlameRadius * pulse, 0, Math.PI * 2);
+      ctx.ellipse(fx, fy, r * 1.55 * pulse, r * 0.95 * pulse, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // Flame core
-      ctx.fillStyle = '#ffcc00';
+      // 2. Scorched Volcanic Basalt Crater / Earth Crack Rim
+      ctx.save();
       ctx.beginPath();
-      ctx.arc(this.fireFlameX, this.fireFlameY, this.fireFlameRadius * 0.4 * pulse, 0, Math.PI * 2);
+      ctx.ellipse(fx, fy, r * 1.08, r * 0.62, 0, 0, Math.PI * 2);
+      ctx.fillStyle = '#1c0803';
+      ctx.strokeStyle = '#4a1506';
+      ctx.lineWidth = 3.5;
       ctx.fill();
+      ctx.stroke();
 
-      // Flame particles
-      ctx.fillStyle = '#ff5500';
-      for (let i = 0; i < 6; i++) {
-        const angle = t * 4 + i * (Math.PI / 3);
-        const fx = this.fireFlameX + Math.cos(angle) * (this.fireFlameRadius * 0.6);
-        const fy = this.fireFlameY + Math.sin(angle) * (this.fireFlameRadius * 0.6);
+      // Radiating Jagged Magma Fissures
+      ctx.strokeStyle = '#ff4400';
+      ctx.lineWidth = 2;
+      ctx.shadowColor = '#ff5500';
+      ctx.shadowBlur = 10;
+      for (let crack = 0; crack < 5; crack++) {
+        const crackAngle = crack * (Math.PI * 2 / 5) + 0.3;
+        const cLen = r * 1.35;
+        const midX = fx + Math.cos(crackAngle) * (cLen * 0.5) + (Math.sin(crack * 3) * 6);
+        const midY = fy + Math.sin(crackAngle) * (cLen * 0.35) + (Math.cos(crack * 2) * 4);
+        const endX = fx + Math.cos(crackAngle) * cLen;
+        const endY = fy + Math.sin(crackAngle) * (cLen * 0.65);
         ctx.beginPath();
-        ctx.arc(fx, fy, 4, 0, Math.PI * 2);
+        ctx.moveTo(fx, fy);
+        ctx.lineTo(midX, midY);
+        ctx.lineTo(endX, endY);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      // 3. Molten Magma Reservoir
+      ctx.save();
+      const magmaGrad = ctx.createRadialGradient(fx, fy, 2, fx, fy, r * 0.85);
+      magmaGrad.addColorStop(0, '#fff4cc');
+      magmaGrad.addColorStop(0.3, '#ffaa00');
+      magmaGrad.addColorStop(0.7, '#ff3300');
+      magmaGrad.addColorStop(1, '#660a00');
+      ctx.fillStyle = magmaGrad;
+      ctx.shadowColor = '#ff7700';
+      ctx.shadowBlur = 18;
+      ctx.beginPath();
+      ctx.ellipse(fx, fy, r * 0.82, r * 0.44, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // 4. Dynamic Rising Licking Flame Tongues (Yerden Yükselen Alev Dilleri)
+      ctx.save();
+      const numFlames = 7;
+      for (let i = 0; i < numFlames; i++) {
+        const norm = (i / (numFlames - 1)) * 2 - 1; // -1 to 1 across crater width
+        const flameBaseX = fx + norm * (r * 0.65);
+        const flameBaseY = fy + (1 - Math.abs(norm)) * 5;
+
+        // Fluctuating height & horizontal wind sway
+        const speedMultiplier = 11 + i * 2.3;
+        const heightWave = Math.sin(t * speedMultiplier + i * 1.7);
+        const flameHeight = 32 + heightWave * 12 + Math.abs(norm) * -8;
+        const swayX = Math.sin(t * 9 + i * 2.1) * 7;
+
+        // Outer Flame (Crimson-Orange)
+        ctx.fillStyle = 'rgba(255, 60, 0, 0.88)';
+        ctx.shadowColor = '#ff4400';
+        ctx.shadowBlur = 14;
+        ctx.beginPath();
+        ctx.moveTo(flameBaseX - 7, flameBaseY);
+        ctx.quadraticCurveTo(flameBaseX - 9 + swayX * 0.5, flameBaseY - flameHeight * 0.55, flameBaseX + swayX, flameBaseY - flameHeight);
+        ctx.quadraticCurveTo(flameBaseX + 9 + swayX * 0.5, flameBaseY - flameHeight * 0.55, flameBaseX + 7, flameBaseY);
+        ctx.closePath();
+        ctx.fill();
+
+        // Inner Flame Core (Golden Amber)
+        ctx.fillStyle = 'rgba(255, 200, 30, 0.92)';
+        ctx.beginPath();
+        ctx.moveTo(flameBaseX - 4, flameBaseY);
+        ctx.quadraticCurveTo(flameBaseX - 5 + swayX * 0.4, flameBaseY - flameHeight * 0.5, flameBaseX + swayX * 0.7, flameBaseY - flameHeight * 0.75);
+        ctx.quadraticCurveTo(flameBaseX + 5 + swayX * 0.4, flameBaseY - flameHeight * 0.5, flameBaseX + 4, flameBaseY);
+        ctx.closePath();
+        ctx.fill();
+
+        // White-Hot Base Core
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.ellipse(flameBaseX, flameBaseY - 2, 3, 5, 0, 0, Math.PI * 2);
         ctx.fill();
       }
+      ctx.restore();
+
+      // 5. Ascending Glowing Ember Sparks (Havaya Yükselen Kıvılcımlar)
+      ctx.save();
+      for (let e = 0; e < 8; e++) {
+        const emberCycle = (t * 55 + e * 23) % 65;
+        const emberX = fx + Math.sin(e * 3.7 + t * 4) * (r * 0.8);
+        const emberY = fy - emberCycle;
+        const emberAlpha = Math.max(0, 1 - (emberCycle / 65));
+        const emberSize = 1.8 + Math.sin(t * 8 + e) * 0.8;
+
+        ctx.fillStyle = e % 2 === 0 ? `rgba(255, 220, 100, ${emberAlpha})` : `rgba(255, 90, 0, ${emberAlpha})`;
+        ctx.shadowColor = '#ffaa00';
+        ctx.shadowBlur = 6;
+        ctx.beginPath();
+        ctx.arc(emberX, emberY, emberSize, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+
       ctx.restore();
     }
 
